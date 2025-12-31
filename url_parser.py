@@ -117,9 +117,10 @@ class URLParser:
             with socket.create_connection((DISPATCHER_HOST, DISPATCHER_PORT), timeout=5) as sock:
                 # 1. Request a URL
                 request = {'action': 'get_fetched_url'}
-                sock.sendall(json.dumps(request).encode('utf-8'))
+                sock.sendall((json.dumps(request) + '\n').encode('utf-8'))
                 
-                response_data = sock.recv(4096).decode('utf-8')
+                f = sock.makefile('r', encoding='utf-8')
+                response_data = f.readline()
                 if not response_data:
                     return
                 
@@ -142,8 +143,9 @@ class URLParser:
                             'url_id': url_id,
                             'has_abc': has_abc
                         }
-                        sock2.sendall(json.dumps(report).encode('utf-8'))
-                        sock2.recv(1024) # Ack
+                        sock2.sendall((json.dumps(report) + '\n').encode('utf-8'))
+                        f2 = sock2.makefile('r', encoding='utf-8')
+                        f2.readline() # Ack
         except Exception as e:
             logger.error(f"Communication error: {e}")
 

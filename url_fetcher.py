@@ -246,10 +246,14 @@ class URLFetcher:
             
             # Request a URL
             request = {'action': 'get_url'}
-            sock.send(json.dumps(request).encode('utf-8'))
+            sock.sendall((json.dumps(request) + '\n').encode('utf-8'))
             
-            # Receive response
-            response_data = sock.recv(4096).decode('utf-8')
+            # Receive response using makefile for readline
+            f = sock.makefile('r', encoding='utf-8')
+            response_data = f.readline()
+            if not response_data:
+                sock.close()
+                return False
             response = json.loads(response_data)
             
             if response['status'] == 'ok':
@@ -273,9 +277,9 @@ class URLFetcher:
                             'http_status': None,
                             'error_type': result.get('error_type')
                         }
-                        sock.send(json.dumps(submit_request).encode('utf-8'))
+                        sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
                         try:
-                            sock.recv(1024)
+                            f.readline() # Ack
                         except:
                             pass
                         print(f"Fetcher {self.fetcher_id} error for {url}: {result.get('error_type')}")
@@ -291,8 +295,8 @@ class URLFetcher:
                             'http_status': result.get('http_status')
                         }
                         
-                        sock.send(json.dumps(submit_request).encode('utf-8'))
-                        submit_response = sock.recv(1024).decode('utf-8')
+                        sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
+                        submit_response = f.readline()
                         print(f"Fetcher {self.fetcher_id} completed: {url}")
                 else:
                     # Mark as fetched even if failed (to avoid infinite retries)
@@ -303,8 +307,8 @@ class URLFetcher:
                         'mime_type': '',
                         'document': ''  # Empty base64 string
                     }
-                    sock.send(json.dumps(submit_request).encode('utf-8'))
-                    sock.recv(1024)
+                    sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
+                    f.readline() # Ack
             
             sock.close()
             return response['status'] == 'ok'

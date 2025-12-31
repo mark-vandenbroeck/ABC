@@ -212,6 +212,13 @@ class Tunebook:
 
     def _parse_content(self, content):
         try:
+            # Normalize line endings: replace \r\n and \r with \n
+            content = content.replace('\r\n', '\n').replace('\r', '\n')
+            
+            # HTML aware pre-processing: replace HTML tags with newlines to ensure X: headers
+            # at the start of a line (even if they follow a <br> or are inside a <div>) are found.
+            content = re.sub(r'<[^>]+>', '\n', content)
+            
             # Simple check if it looks like ABC
             if "X:" not in content:
                 self.success = False
