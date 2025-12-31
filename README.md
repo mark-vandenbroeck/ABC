@@ -68,18 +68,81 @@ graph TD
     class Disp,Fetcher1,FetcherN,Parser1,ParserN,Purge process;
 ```
 
-## Database Schema (Belangrijkste tabellen)
+## Database Schema
 
-### `urls` tabel
-- `status`: '', 'dispatched', 'fetched', 'parsing', 'parsed', 'error'.
-- `document`: De ruwe gedownloade content (BLOB).
-- `has_abc`: Boolean die aangeeft of er muziekdata is gevonden.
-- `host`: Hostnaam voor scheduling en cooldowns.
+Het systeem gebruikt een SQLite database (`crawler.db`) met de volgende tabellen:
 
-### `tunes` tabel
-- Bevat alle geparsede ABC-metadata (T, C, K, M, L, etc.).
-- `tune_body`: De ruwe ABC-muziektekst.
-- `pitches`: Komma-gescheiden MIDI-getallen van de noten.
+### 1. `urls` (De centrale queue)
+- `id`: Primaire sleutel.
+- `url`: De unieke URL.
+- `host`: De hostnaam (bijv. 'example.com').
+- `created_at`: Tijdstip van toevoegen.
+- `dispatched_at`: Wanneer de URL is uitgedeeld aan een Fetcher/Parser.
+- `downloaded_at`: Tijdstip van download door de Fetcher.
+- `size_bytes`: Grootte van het document (0 indien 'erased').
+- `status`: Huidige staat ('', 'dispatched', 'fetched', 'parsing', 'parsed', 'error').
+- `mime_type`: Content-type van de URL.
+- `http_status`: HTTP response code (bijv. 200, 404).
+- `retries`: Aantal mislukte pogingen.
+- `document`: De ruwe content (BLOB) of de tekst 'erased' voor opgeschoonde records.
+- `has_abc`: Boolean, `1` als het document ABC muziekstukken bevat.
+
+### 2. `hosts` (Beheer van politeness en DNS)
+- `host`: De hostnaam.
+- `last_access`: Tijdstip van het laatste verzoek.
+- `last_http_status`: Laatste HTTP status van deze host.
+- `downloads`: Totaal aantal succesvolle downloads van deze host.
+- `disabled`: Boolean, `1` als de host is uitgeschakeld.
+- `disabled_reason`: Reden van uitschakeling (bijv. 'dns').
+- `disabled_at`: Tijdstip van uitschakeling.
+
+### 3. `tunebooks` (Groepering van tunes)
+- `id`: Primaire sleutel.
+- `url`: De unieke URL van het bronbestand.
+- `created_at`: Tijdstip van extractie.
+
+### 4. `tunes` (Geëxtraheerde muziekdata)
+- `id`: Primaire sleutel.
+- `tunebook_id`: Foreign key naar `tunebooks`.
+- `reference_number`: (X) Het referentienummer.
+- `title`: (T) De titel van de tune.
+- `composer`: (C) De componist.
+- `origin`: (O) Herkomst.
+- `area`: (A) Gebied.
+- `meter`: (M) Maatsoort.
+- `unit_note_length`: (L) Standaard nootlengte.
+- `tempo`: (Q) Tempo informatie.
+- `parts`: (P) Onderdelen van de tune.
+- `transcription`: (Z) Transscribent.
+- `notes`: (N) Notities.
+- `group`: (G) Groep.
+- `history`: (H) Historie.
+- `key`: (K) Toonsoort.
+- `rhythm`: (R) Ritme.
+- `book`: (B) Boek referentie.
+- `discography`: (D) Discografie.
+- `source`: (S) Bron.
+- `instruction`: (I) Instructies.
+- `tune_body`: De ruwe ABC-notatie van de melodie.
+- `pitches`: Komma-gescheiden lijst van MIDI pitches.
+- `intervals`: (Legacy) Oude kolom voor intervallen (nu leeg).
+
+### 5. `mime_types` (Configuratie van downloads)
+- `id`: Primaire sleutel.
+- `pattern`: MIME-type patroon (bijv. `text/*`).
+- `enabled`: Of dit type toegestaan is (1/0).
+
+### 6. `refused_extensions` (Filters op bestandstype)
+- `extension`: De extensie (bijv. 'exe', 'zip').
+- `reason`: Reden voor weigering.
+- `created_at`: Tijdstip van toevoegen aan blacklist.
+
+### 7. `processes` (Procesbeheer)
+- `id`: Primaire sleutel.
+- `pid`: Process ID van het lokale OS.
+- `type`: Type proces (fetcher, parser, purger, etc.).
+- `status`: Huidige status ('running', etc.).
+- `started_at`: Tijdstip van opstarten.
 
 ## Installatie & Gebruik
 

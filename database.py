@@ -203,6 +203,7 @@ def init_database():
             rhythm TEXT,
             book TEXT,
             discography TEXT,
+            source TEXT,
             instruction TEXT,
             tune_body TEXT,
             intervals TEXT,
