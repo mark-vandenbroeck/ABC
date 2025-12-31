@@ -1160,31 +1160,31 @@
                 grid.innerHTML = `
                     <div class="stat-card">
                         <div class="stat-label">Total URLs</div>
-                        <div class="stat-value">${data.total_urls || 0}</div>
+                        <div class="stat-value">${formatNumber(data.total_urls || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">New URLs</div>
-                        <div class="stat-value">${data.by_status?.new || 0}</div>
+                        <div class="stat-value">${formatNumber(data.by_status?.new || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Fetched URLs</div>
-                        <div class="stat-value">${data.by_status?.fetched || 0}</div>
+                        <div class="stat-value">${formatNumber(data.by_status?.fetched || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Parsed Documents</div>
-                        <div class="stat-value">${data.total_parsed || 0}</div>
+                        <div class="stat-value">${formatNumber(data.total_parsed || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Contains Tunes</div>
-                        <div class="stat-value">${data.total_with_abc || 0}</div>
+                        <div class="stat-value">${formatNumber(data.total_with_abc || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Total Tunebooks</div>
-                        <div class="stat-value">${data.total_tunebooks || 0}</div>
+                        <div class="stat-value">${formatNumber(data.total_tunebooks || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Total Tunes</div>
-                        <div class="stat-value">${data.total_tunes || 0}</div>
+                        <div class="stat-value">${formatNumber(data.total_tunes || 0)}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Total Size</div>
@@ -1201,7 +1201,11 @@
             const k = 1024;
             const sizes = ['B', 'KB', 'MB', 'GB'];
             const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+            return formatNumber(Math.round(bytes / Math.pow(k, i) * 100) / 100) + ' ' + sizes[i];
+        }
+
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
         }
     </script>
 </body>
