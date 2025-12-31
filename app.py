@@ -5,6 +5,7 @@ import os
 import signal
 import json
 from database import get_db_connection, DB_PATH, init_database
+from log_rotator import RotatingFileWriter
 
 app = Flask(__name__)
 
@@ -227,7 +228,7 @@ def start_purger():
     
     try:
         os.makedirs('logs', exist_ok=True)
-        log_file = open('logs/purger_error.log', 'a')
+        log_file = RotatingFileWriter('logs/purger_error.log', max_bytes=3145728, backup_count=4)
         proc = subprocess.Popen(['python', '-u', 'url_purger.py'],
                               stdout=log_file,
                               stderr=log_file)
@@ -276,7 +277,7 @@ def add_fetcher():
     
     try:
         os.makedirs('logs', exist_ok=True)
-        log_file = open('logs/fetcher_out.log', 'a')
+        log_file = RotatingFileWriter('logs/fetcher_out.log', max_bytes=3145728, backup_count=4)
         proc = subprocess.Popen(['python', '-u', 'url_fetcher.py', fetcher_id],
                               stdout=log_file,
                               stderr=log_file)
@@ -327,7 +328,7 @@ def add_parser():
     
     try:
         os.makedirs('logs', exist_ok=True)
-        log_file = open('logs/parser_out.log', 'a')
+        log_file = RotatingFileWriter('logs/parser_out.log', max_bytes=3145728, backup_count=4)
         proc = subprocess.Popen(['python', '-u', 'url_parser.py', parser_id],
                               stdout=log_file,
                               stderr=log_file)
