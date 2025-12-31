@@ -40,6 +40,34 @@ Het systeem volgt een drie-fasen pipeline:
 2. **Fetch**: Fetchers downloaden de content en slaan deze op als BLOB. De status wordt 'fetched'.
 3. **Parse**: De Dispatcher stuurt 'fetched' URLs naar Parsers. Parsers extraheren muziekdata en zetten de status op 'parsed'.
 
+### Data & Proces Flow
+```mermaid
+graph TD
+    User((Gebruiker)) <--> Web[Flask Dashboard]
+    Web <--> DB[(SQLite Database)]
+    
+    subgraph "Backend Processes"
+        Disp[URL Dispatcher] <--> DB
+        Purge[URL Purger] --> DB
+        
+        Disp -- Sockets --> Fetcher1[URL Fetcher 1]
+        Disp -- Sockets --> FetcherN[URL Fetcher N]
+        Disp -- Sockets --> Parser1[URL Parser 1]
+        Disp -- Sockets --> ParserN[URL Parser N]
+    end
+    
+    Fetcher1 --> Internet((World Wide Web))
+    FetcherN --> Internet
+    
+    Fetcher1 -.-> DB
+    FetcherN -.-> DB
+    Parser1 -.-> DB
+    ParserN -.-> DB
+    
+    classDef process fill:#f9f,stroke:#333,stroke-width:2px;
+    class Disp,Fetcher1,FetcherN,Parser1,ParserN,Purge process;
+```
+
 ## Database Schema (Belangrijkste tabellen)
 
 ### `urls` tabel
