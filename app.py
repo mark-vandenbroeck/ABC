@@ -736,6 +736,12 @@ def get_stats():
     cursor.execute("SELECT COUNT(*) FROM urls WHERE has_abc = 1")
     stats['total_with_abc'] = cursor.fetchone()[0]
 
+    cursor.execute("SELECT COUNT(*) FROM tunebooks")
+    stats['total_tunebooks'] = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM tunes")
+    stats['total_tunes'] = cursor.fetchone()[0]
+
     conn.close()
     
     return jsonify(stats)
