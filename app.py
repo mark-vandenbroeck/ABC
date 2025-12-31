@@ -363,6 +363,78 @@ def remove_parser(parser_id):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/processes/stop-all', methods=['POST'])
+def stop_all_processes():
+    """Stop all running processes (dispatcher, purger, fetchers, parsers)"""
+    stopped = []
+    errors = []
+    
+    # Stop all fetchers
+    for fetcher_id in list(processes['fetchers'].keys()):
+        try:
+            os.kill(processes['fetchers'][fetcher_id], signal.SIGTERM)
+            try:
+                pidfile = os.path.join(os.getcwd(), 'run', f'fetcher.{fetcher_id}.pid')
+                if os.path.exists(pidfile):
+                    os.remove(pidfile)
+            except Exception:
+                pass
+            del processes['fetchers'][fetcher_id]
+            stopped.append(f'fetcher-{fetcher_id}')
+        except Exception as e:
+            errors.append(f'fetcher-{fetcher_id}: {str(e)}')
+    
+    # Stop all parsers
+    for parser_id in list(processes['parsers'].keys()):
+        try:
+            os.kill(processes['parsers'][parser_id], signal.SIGTERM)
+            try:
+                pidfile = os.path.join(os.getcwd(), 'run', f'parser.{parser_id}.pid')
+                if os.path.exists(pidfile):
+                    os.remove(pidfile)
+            except Exception:
+                pass
+            del processes['parsers'][parser_id]
+            stopped.append(f'parser-{parser_id}')
+        except Exception as e:
+            errors.append(f'parser-{parser_id}: {str(e)}')
+    
+    # Stop purger
+    if processes['purger']:
+        try:
+            os.kill(processes['purger'], signal.SIGTERM)
+            try:
+                pidfile = os.path.join(os.getcwd(), 'run', 'purger.pid')
+                if os.path.exists(pidfile):
+                    os.remove(pidfile)
+            except Exception:
+                pass
+            processes['purger'] = None
+            stopped.append('purger')
+        except Exception as e:
+            errors.append(f'purger: {str(e)}')
+    
+    # Stop dispatcher
+    if processes['dispatcher']:
+        try:
+            os.kill(processes['dispatcher'], signal.SIGTERM)
+            try:
+                pidfile = os.path.join(os.getcwd(), 'run', 'dispatcher.pid')
+                if os.path.exists(pidfile):
+                    os.remove(pidfile)
+            except Exception:
+                pass
+            processes['dispatcher'] = None
+            stopped.append('dispatcher')
+        except Exception as e:
+            errors.append(f'dispatcher: {str(e)}')
+    
+    return jsonify({
+        'status': 'ok',
+        'stopped': stopped,
+        'errors': errors if errors else None
+    })
+
 @app.route('/api/urls', methods=['GET'])
 def get_urls():
     """Get URLs from the queue with optional filters (status, url wildcard, mime wildcard)"""

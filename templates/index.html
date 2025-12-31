@@ -356,6 +356,15 @@
                 <div id="parsers-list"></div>
                 <button class="button success" onclick="addParser()">Add Parser</button>
             </div>
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd;">
+                <button class="button danger" onclick="stopAllProcesses()"
+                    style="font-size: 1.1em; padding: 12px 24px;">
+                    🛑 Stop All Processes
+                </button>
+                <p style="font-size: 0.9em; color: #666; margin-top: 8px;">
+                    Stops dispatcher, purger, all fetchers, and all parsers.
+                </p>
+            </div>
         </div>
 
         <!-- Statistics Section -->
@@ -750,7 +759,7 @@
                 });
                 const data = await response.json();
                 if (data.status === 'ok') {
-                    loadProcesses();
+                    await loadProcesses();
                 } else {
                     alert('Error: ' + data.message);
                 }
@@ -758,6 +767,32 @@
                 alert('Error adding parser: ' + error);
             }
         }
+
+        async function stopAllProcesses() {
+            if (!confirm('Are you sure you want to stop ALL processes (dispatcher, purger, fetchers, and parsers)?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/processes/stop-all', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    const stoppedCount = data.stopped ? data.stopped.length : 0;
+                    alert(`Successfully stopped ${stoppedCount} process(es): ${data.stopped ? data.stopped.join(', ') : 'none'}`);
+                    if (data.errors && data.errors.length > 0) {
+                        alert('Some errors occurred:\n' + data.errors.join('\n'));
+                    }
+                    await loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error stopping processes: ' + error);
+            }
+        }
+
 
         async function removeParser(parserId) {
             try {
