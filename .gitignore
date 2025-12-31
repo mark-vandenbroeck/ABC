@@ -39,8 +39,3 @@ wheels/
 .DS_Store
 Thumbs.db
 
-# Application
-logs/
-run/
-*.log
-

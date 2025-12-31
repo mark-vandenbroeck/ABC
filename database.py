@@ -150,80 +150,11 @@ def init_database():
     except Exception:
         pass
 
-    # Add has_abc column to urls to track if a URL contains valid ABC data
-    if 'has_abc' not in cols:
-        try:
-            cursor.execute('ALTER TABLE urls ADD COLUMN has_abc BOOLEAN')
-        except Exception:
-            pass
-
     # Add an index on urls.host for faster joins and filtering
     try:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_host ON urls(host)')
     except Exception:
         pass
-
-    # Table to store refused filename extensions (e.g., 'exe', 'zip')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS refused_extensions (
-            extension TEXT PRIMARY KEY,
-            reason TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-
-    # Tunebooks table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tunebooks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            url TEXT UNIQUE NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Tunes table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tunes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tunebook_id INTEGER,
-            reference_number TEXT,
-            title TEXT,
-            composer TEXT,
-            origin TEXT,
-            area TEXT,
-            meter TEXT,
-            unit_note_length TEXT,
-            tempo TEXT,
-            parts TEXT,
-            transcription TEXT,
-            notes TEXT,
-            "group" TEXT,
-            history TEXT,
-            key TEXT,
-            rhythm TEXT,
-            book TEXT,
-            discography TEXT,
-            source TEXT,
-            instruction TEXT,
-            tune_body TEXT,
-            intervals TEXT,
-            pitches TEXT,
-            FOREIGN KEY(tunebook_id) REFERENCES tunebooks(id)
-        )
-    ''')
-
-    # Migration for pitches column in tunes table
-    cursor.execute("PRAGMA table_info(tunes)")
-    tune_cols = [row[1] for row in cursor.fetchall()]
-    if 'pitches' not in tune_cols:
-        try:
-            cursor.execute('ALTER TABLE tunes ADD COLUMN pitches TEXT')
-            # Copy data from intervals to pitches
-            cursor.execute('UPDATE tunes SET pitches = intervals WHERE intervals IS NOT NULL')
-            # Clear intervals column
-            cursor.execute('UPDATE tunes SET intervals = NULL')
-        except Exception:
-            pass
 
     conn.commit()
     conn.close()

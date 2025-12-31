@@ -31,7 +31,7 @@ if [ -f run/dispatcher.pid ]; then
 fi
 if [ ! -f run/dispatcher.pid ]; then
   echo "Starting dispatcher..."
-  nohup python url_dispatcher.py >/dev/null 2>>logs/dispatcher_error.log &
+  python -u url_dispatcher.py >> logs/dispatcher.log 2>> logs/dispatcher_error.log &
   echo $! > run/dispatcher.pid
   echo "Dispatcher PID: $(cat run/dispatcher.pid)"
 fi

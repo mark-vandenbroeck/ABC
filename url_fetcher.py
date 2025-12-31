@@ -5,6 +5,7 @@ import requests
 import time
 import signal
 import sys
+import os
 import base64
 from urllib.parse import urljoin, urlparse
 from urllib.robotparser import RobotFileParser
@@ -12,26 +13,23 @@ from bs4 import BeautifulSoup
 from database import get_db_connection, DB_PATH
 import re
 import logging
-from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-# Log file next to the database file
+from logging.handlers import RotatingFileHandler
+
+# Log file in the logs directory
 LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'fetcher.log'
 logger = logging.getLogger('url_fetcher')
 logger.setLevel(logging.INFO)
 if not logger.handlers:
+    os.makedirs(LOG_FILE.parent, exist_ok=True)
     # 3 MB = 3145728 bytes
     fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
     fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(fh)
-logger.setLevel(logging.INFO)
 
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
-
-# How many seconds to wait for an HTTP response before considering it a timeout.
-# Increase this for slow hosts like www.campin.me.uk (default was 10).
-URL_FETCH_TIMEOUT = 30
 
 class URLFetcher:
     def __init__(self, fetcher_id):
@@ -43,7 +41,7 @@ class URLFetcher:
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
-        logger.info(f"\nFetcher {self.fetcher_id} shutting down...")
+        print(f"\nFetcher {self.fetcher_id} shutting down...")
         self.running = False
         sys.exit(0)
     
@@ -59,7 +57,7 @@ class URLFetcher:
                 rp.set_url(robots_url)
                 rp.read()
             except Exception as e:
-                logger.warning(f"Warning: Could not read robots.txt from {robots_url}: {e}")
+                print(f"Warning: Could not read robots.txt from {robots_url}: {e}")
                 # Allow all if robots.txt can't be read
                 rp.allow_all = True
             self.robots_cache[base_url] = rp
@@ -113,14 +111,13 @@ class URLFetcher:
                     if parsed.scheme in ['http', 'https']:
                         links.append(absolute_url)
         except Exception as e:
-            logger.error(f"Error extracting links: {e}")
+            print(f"Error extracting links: {e}")
         
         return links
     
     def add_urls_to_database(self, urls):
         """Add new URLs to the database, storing host when possible to ensure per-host
         cooldowns are applied by the dispatcher immediately after insertion."""
-        import os
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -131,17 +128,6 @@ class URLFetcher:
                 # Only add http/https URLs
                 if parsed.scheme not in ('http', 'https'):
                     continue
-
-                # Reject based on filename extension if configured
-                path = parsed.path or ''
-                _, ext = os.path.splitext(path)
-                if ext:
-                    ext = ext.lstrip('.').lower()
-                    cur_check = conn.cursor()
-                    cur_check.execute('SELECT 1 FROM refused_extensions WHERE extension = ?', (ext,))
-                    if cur_check.fetchone():
-                        # Skip adding this URL
-                        continue
 
                 host = None
                 try:
@@ -157,7 +143,7 @@ class URLFetcher:
                 if cursor.rowcount > 0:
                     added += 1
             except Exception as e:
-                logger.error(f"Error adding URL {url}: {e}")
+                print(f"Error adding URL {url}: {e}")
         
         conn.commit()
         conn.close()
@@ -168,7 +154,7 @@ class URLFetcher:
         try:
             # Check robots.txt
             if not self.can_fetch(url):
-                logger.info(f"URL {url} blocked by robots.txt")
+                print(f"URL {url} blocked by robots.txt")
                 return None
             
             # Fetch the URL
@@ -176,11 +162,11 @@ class URLFetcher:
                 'User-Agent': 'WebCrawler/1.0'
             }
             try:
-                response = requests.get(url, headers=headers, timeout=URL_FETCH_TIMEOUT, allow_redirects=True)
+                response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
             except Exception as e:
                 # Network error / no response
                 logger.info(f"Fetcher {self.fetcher_id} - {url} - ERROR - {e}")
-                logger.error(f"Error fetching {url}: {e}")
+                print(f"Error fetching {url}: {e}")
                 return None
 
             # Log the status code for this download
@@ -191,14 +177,14 @@ class URLFetcher:
                 response.raise_for_status()
             except Exception as e:
                 # HTTP error (e.g., 404) - we already logged the status code above
-                logger.error(f"Error fetching {url}: {e}")
+                print(f"Error fetching {url}: {e}")
                 return None
 
             mime_type = response.headers.get('Content-Type', '').split(';')[0].strip()
             
             # Check if MIME type is allowed
             if not self.is_mime_type_allowed(mime_type):
-                logger.info(f"URL {url} has disallowed MIME type: {mime_type}")
+                print(f"URL {url} has disallowed MIME type: {mime_type}")
                 return {
                     'url_id': url_id,
                     'size_bytes': len(response.content),
@@ -212,13 +198,15 @@ class URLFetcher:
             # Extract links if HTML
             if mime_type.startswith('text/html'):
                 try:
-                    html_text = content.decode('utf-8', errors='ignore')
-                    links = self.extract_links(html_text, url)
-                    if links:
-                        added = self.add_urls_to_database(links)
-                        logger.info(f"Added {added} new URLs from {url}")
+                    # Harvesting disabled temporarily
+                    pass
+                    # html_text = content.decode('utf-8', errors='ignore')
+                    # links = self.extract_links(html_text, url)
+                    # if links:
+                    #     added = self.add_urls_to_database(links)
+                    #     print(f"Added {added} new URLs from {url}")
                 except Exception as e:
-                    logger.error(f"Error processing links from {url}: {e}")
+                    print(f"Error processing links from {url}: {e}")
             
             return {
                 'url_id': url_id,
@@ -229,89 +217,96 @@ class URLFetcher:
             }
             
         except requests.exceptions.Timeout as e:
-            logger.warning(f"Timeout fetching {url}: {e}")
+            print(f"Timeout fetching {url}: {e}")
             return {'error_type': 'timeout', 'error_message': str(e)}
         except requests.exceptions.ConnectionError as e:
             # Could be DNS resolution error or other connection issue
             msg = str(e)
             error_type = 'dns' if 'Name or service not known' in msg or 'nodename nor servname' in msg else 'connection'
-            logger.error(f"Connection error fetching {url}: {e}")
+            print(f"Connection error fetching {url}: {e}")
             return {'error_type': error_type, 'error_message': msg}
         except Exception as e:
-            logger.error(f"Error fetching {url}: {e}")
+            print(f"Error fetching {url}: {e}")
             return {'error_type': 'other', 'error_message': str(e)}
     
     def communicate_with_dispatcher(self):
-        """Communicate with dispatcher to get a batch of URLs and submit results"""
+        """Communicate with dispatcher to get URLs and submit results"""
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((DISPATCHER_HOST, DISPATCHER_PORT))
             
-            # Request batch of URLs
+            # Request a URL
             request = {'action': 'get_url'}
-            sock.sendall((json.dumps(request) + '\n').encode('utf-8'))
+            sock.send(json.dumps(request).encode('utf-8'))
             
-            f = sock.makefile('r', encoding='utf-8')
-            response_data = f.readline()
-            if not response_data:
-                sock.close()
-                return False
-            
+            # Receive response
+            response_data = sock.recv(4096).decode('utf-8')
             response = json.loads(response_data)
             
-            if response['status'] == 'ok' and 'urls' in response:
-                urls_batch = response['urls']
-                logger.info(f"Fetcher {self.fetcher_id} received batch of {len(urls_batch)} URLs")
+            if response['status'] == 'ok':
+                url_id = response['url_id']
+                url = response['url']
                 
-                for url_info in urls_batch:
-                    url_id = url_info['id']
-                    url = url_info['url']
-                    
-                    logger.info(f"Fetcher {self.fetcher_id} fetching: {url}")
-                    result = self.fetch_url(url_id, url)
-                    
-                    if result:
-                        if 'error_type' in result:
-                            submit_request = {
-                                'action': 'submit_result',
-                                'url_id': url_id,
-                                'url': url,
-                                'error_type': result.get('error_type')
-                            }
-                        else:
-                            document_b64 = base64.b64encode(result['document']).decode('utf-8') if result['document'] else ''
-                            submit_request = {
-                                'action': 'submit_result',
-                                'url_id': result['url_id'],
-                                'size_bytes': result['size_bytes'],
-                                'mime_type': result['mime_type'],
-                                'document': document_b64,
-                                'http_status': result.get('http_status')
-                            }
-                    else:
-                        # Fallback for unexpected None result
+                print(f"Fetcher {self.fetcher_id} fetching: {url}")
+                
+                # Fetch the URL
+                result = self.fetch_url(url_id, url)
+                
+                if result:
+                    # If fetch_url returned an error_type, send it so dispatcher can act (e.g., disable host)
+                    if 'error_type' in result:
                         submit_request = {
                             'action': 'submit_result',
                             'url_id': url_id,
-                            'error_type': 'other'
+                            'size_bytes': 0,
+                            'mime_type': '',
+                            'document': '',
+                            'http_status': None,
+                            'error_type': result.get('error_type')
                         }
-
-                    sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
-                    f.readline() # Wait for ACK
-                
-                sock.close()
-                return True
+                        sock.send(json.dumps(submit_request).encode('utf-8'))
+                        try:
+                            sock.recv(1024)
+                        except:
+                            pass
+                        print(f"Fetcher {self.fetcher_id} error for {url}: {result.get('error_type')}")
+                    else:
+                        # Submit result (encode binary as base64 for JSON)
+                        document_b64 = base64.b64encode(result['document']).decode('utf-8') if result['document'] else ''
+                        submit_request = {
+                            'action': 'submit_result',
+                            'url_id': result['url_id'],
+                            'size_bytes': result['size_bytes'],
+                            'mime_type': result['mime_type'],
+                            'document': document_b64,
+                            'http_status': result.get('http_status')
+                        }
+                        
+                        sock.send(json.dumps(submit_request).encode('utf-8'))
+                        submit_response = sock.recv(1024).decode('utf-8')
+                        print(f"Fetcher {self.fetcher_id} completed: {url}")
+                else:
+                    # Mark as fetched even if failed (to avoid infinite retries)
+                    submit_request = {
+                        'action': 'submit_result',
+                        'url_id': url_id,
+                        'size_bytes': 0,
+                        'mime_type': '',
+                        'document': ''  # Empty base64 string
+                    }
+                    sock.send(json.dumps(submit_request).encode('utf-8'))
+                    sock.recv(1024)
             
             sock.close()
             return response['status'] == 'ok'
             
         except Exception as e:
-            logger.error(f"Fetcher {self.fetcher_id} communication error: {e}")
+            print(f"Fetcher {self.fetcher_id} communication error: {e}")
             return False
     
     def run(self):
-        """Run the fetcher loop"""
-        logger.info(f"Fetcher {self.fetcher_id} started")
+        """Main loop"""
+        logger.info(f"Fetcher {self.fetcher_id} started (PID: {os.getpid()})")
         
         while self.running:
             try:
@@ -327,7 +322,7 @@ class URLFetcher:
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                logger.error(f"Fetcher {self.fetcher_id} error: {e}")
+                print(f"Fetcher {self.fetcher_id} error: {e}")
                 time.sleep(2)
 
 if __name__ == '__main__':
