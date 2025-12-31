@@ -11,6 +11,18 @@ from urllib.parse import urlparse
 from datetime import datetime, timedelta
 from database import get_db_connection, DB_PATH, init_database
 import threading
+import logging
+from logging.handlers import RotatingFileHandler
+
+# Configure logging with rotation
+LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'dispatcher.log'
+logger = logging.getLogger('url_dispatcher')
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    # 50 MB = 52428800 bytes
+    handler = RotatingFileHandler(LOG_FILE, maxBytes=52428800, backupCount=4)
+    handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+    logger.addHandler(handler)
 
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
@@ -43,7 +55,7 @@ class URLDispatcher:
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
-        print("\nShutting down dispatcher...")
+        logger.info("Shutting down dispatcher...")
         self.running = False
         if self.server_socket:
             self.server_socket.close()
@@ -95,12 +107,12 @@ class URLDispatcher:
                         cur.execute('INSERT OR IGNORE INTO hosts (host, last_access, last_http_status, downloads, disabled, disabled_reason, disabled_at) VALUES (?, NULL, NULL, 0, 1, ?, CURRENT_TIMESTAMP)', (host, 'dns'))
                         cur.execute('UPDATE hosts SET disabled = 1, disabled_reason = ?, disabled_at = CURRENT_TIMESTAMP WHERE host = ?', ('dns', host))
                         conn.commit(); conn.close()
-                        print(f"Log scanner: marked host {host} disabled (dns)")
+                        logger.warning(f"Log scanner: marked host {host} disabled (dns)")
                     except Exception as e:
-                        print(f"Log scanner warning: could not update host {host}: {e}")
+                        logger.warning(f"Log scanner warning: could not update host {host}: {e}")
                 time.sleep(interval_seconds)
             except Exception as e:
-                print(f"Log scanner error: {e}")
+                logger.error(f"Log scanner error: {e}")
                 time.sleep(interval_seconds)
 
     def get_next_url(self, batch_size=50, dispatch_timeout_seconds=60, host_cooldown_seconds=10):
@@ -168,12 +180,12 @@ class URLDispatcher:
                     cursor.execute('INSERT OR IGNORE INTO hosts (host, last_access, last_http_status, downloads) VALUES (?, CURRENT_TIMESTAMP, NULL, 0)', (target_host,))
                     cursor.execute('UPDATE hosts SET last_access = CURRENT_TIMESTAMP WHERE host = ?', (target_host,))
                 except Exception as e2:
-                    print(f"Warning: could not reserve host {target_host} on dispatch: {e2}")
+                    logger.warning(f"Warning: could not reserve host {target_host} on dispatch: {e2}")
 
             conn.commit()
             return urls_to_dispatch
         except Exception as e:
-            print(f"Error in get_next_url: {e}")
+            logger.error(f"Error in get_next_url: {e}")
             try:
                 conn.rollback()
             except:
@@ -210,7 +222,7 @@ class URLDispatcher:
             conn.commit()
             return urls
         except Exception as e:
-            print(f"Error in get_next_fetched_url: {e}")
+            logger.error(f"Error in get_next_fetched_url: {e}")
             try:
                 conn.rollback()
             except:
@@ -265,7 +277,7 @@ class URLDispatcher:
                 cursor.execute('UPDATE hosts SET last_access = CURRENT_TIMESTAMP, last_http_status = ?, downloads = COALESCE(downloads, 0) + 1 WHERE host = ?', (http_status, host))
                 conn.commit()
         except Exception as e:
-            print(f"Warning: could not update host record in mark_url_fetched: {e}")
+            logger.warning(f"Warning: could not update host record in mark_url_fetched: {e}")
         finally:
             conn.close()
     
@@ -282,7 +294,7 @@ class URLDispatcher:
             try:
                 request = json.loads(line)
             except json.JSONDecodeError as e:
-                print(f"Error decoding initial request: {e}")
+                logger.error(f"Error decoding initial request: {e}")
                 return
             
             action = request.get('action')
@@ -346,7 +358,7 @@ class URLDispatcher:
                                             reason = 'timeout'
                                         
                                         if should_disable:
-                                            print(f"Marking host {host} disabled due to {reason}")
+                                            logger.warning(f"Marking host {host} disabled due to {reason}")
                                             cur.execute('INSERT OR IGNORE INTO hosts (host) VALUES (?)', (host,))
                                             cur.execute('UPDATE hosts SET disabled = 1, disabled_reason = ?, disabled_at = CURRENT_TIMESTAMP, last_access = CURRENT_TIMESTAMP, last_http_status = ? WHERE host = ?', (reason, http_status, host))
                                         else:
@@ -361,7 +373,7 @@ class URLDispatcher:
                                 # Send ACK for this URL
                                 client_socket.sendall((json.dumps({'status': 'ok'}) + '\n').encode('utf-8'))
                         except Exception as e:
-                            print(f"Error processing batched fetch result: {e}")
+                            logger.error(f"Error processing batched fetch result: {e}")
                             break
                 else:
                     client_socket.sendall((json.dumps({'status': 'no_urls'}) + '\n').encode('utf-8'))
@@ -395,22 +407,12 @@ class URLDispatcher:
                 client_socket.sendall((json.dumps({'status': 'ok'}) + '\n').encode('utf-8'))
 
         except Exception as e:
-            print(f"Error handling request from {address}: {e}")
+            logger.error(f"Error handling request from {address}: {e}")
         finally:
             try:
                 client_socket.close()
             except:
                 pass
-                
-        except Exception as e:
-            print(f"Error handling fetcher request: {e}")
-            try:
-                error_response = {'status': 'error', 'message': str(e)}
-                client_socket.sendall((json.dumps(error_response) + '\n').encode('utf-8'))
-            except:
-                pass
-        finally:
-            client_socket.close()
     
     def run(self):
         """Run the dispatcher server"""
@@ -420,14 +422,14 @@ class URLDispatcher:
         try:
             self.server_socket.bind((DISPATCHER_HOST, DISPATCHER_PORT))
             self.server_socket.listen(5)
-            print(f"URL Dispatcher listening on {DISPATCHER_HOST}:{DISPATCHER_PORT}")
+            logger.info(f"URL Dispatcher listening on {DISPATCHER_HOST}:{DISPATCHER_PORT}")
             
             import threading
             while self.running:
                 try:
                     self.server_socket.settimeout(1.0)
                     client_socket, address = self.server_socket.accept()
-                    print(f"Fetcher connected from {address}")
+                    logger.info(f"Fetcher connected from {address}")
                     # Handle each fetcher connection in a separate thread so multiple fetchers can
                     # request URLs concurrently and we don't block on long-running fetches.
                     t = threading.Thread(target=self.handle_fetcher_request, args=(client_socket, address), daemon=True)
@@ -436,11 +438,11 @@ class URLDispatcher:
                     continue
                 except Exception as e:
                     if self.running:
-                        print(f"Error accepting connection: {e}")
+                        logger.error(f"Error accepting connection: {e}")
                     continue
                     
         except Exception as e:
-            print(f"Dispatcher error: {e}")
+            logger.critical(f"Dispatcher error: {e}")
         finally:
             if self.server_socket:
                 self.server_socket.close()

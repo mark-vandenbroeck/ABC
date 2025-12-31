@@ -4,23 +4,24 @@ import time
 import signal
 import sys
 import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
 from abc_parser import Tunebook
-from database import get_db_connection
+from database import get_db_connection, DB_PATH
 
 # Dispatcher configuration
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
 
 # Logging configuration
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s %(levelname)s: %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/parser.log')
-    ]
-)
+LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'parser.log'
 logger = logging.getLogger('url_parser')
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    # 50 MB = 52428800 bytes
+    fh = RotatingFileHandler(LOG_FILE, maxBytes=52428800, backupCount=4)
+    fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+    logger.addHandler(fh)
 
 class URLParser:
     def __init__(self, parser_id):

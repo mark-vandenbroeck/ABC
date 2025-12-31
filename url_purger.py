@@ -3,15 +3,18 @@ import sys
 import signal
 import time
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 from database import get_db_connection, DB_PATH
 
 # Log file in the logs directory
 LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'purger.log'
 logger = logging.getLogger('url_purger')
+logger.setLevel(logging.INFO)
 if not logger.handlers:
     os.makedirs(LOG_FILE.parent, exist_ok=True)
-    fh = logging.FileHandler(LOG_FILE)
+    # 50 MB = 52428800 bytes
+    fh = RotatingFileHandler(LOG_FILE, maxBytes=52428800, backupCount=4)
     fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(fh)
 logger.setLevel(logging.INFO)

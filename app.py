@@ -178,9 +178,9 @@ def start_dispatcher():
     
     try:
         os.makedirs('logs', exist_ok=True)
-        log_file = open('logs/dispatcher.log', 'a')
+        log_file = open('logs/dispatcher_error.log', 'a')
         proc = subprocess.Popen(['python', 'url_dispatcher.py'], 
-                              stdout=log_file, 
+                              stdout=subprocess.DEVNULL, 
                               stderr=log_file)
         processes['dispatcher'] = proc.pid
         # Write pidfile so external scripts can see/coordinate with this process
@@ -226,9 +226,9 @@ def start_purger():
     
     try:
         os.makedirs('logs', exist_ok=True)
-        log_file = open('logs/purger.log', 'a')
+        log_file = open('logs/purger_error.log', 'a')
         proc = subprocess.Popen(['python', 'url_purger.py'],
-                              stdout=log_file,
+                              stdout=subprocess.DEVNULL,
                               stderr=log_file)
         processes['purger'] = proc.pid
         try:
@@ -277,7 +277,7 @@ def add_fetcher():
         os.makedirs('logs', exist_ok=True)
         log_file = open('logs/fetcher_out.log', 'a')
         proc = subprocess.Popen(['python', 'url_fetcher.py', fetcher_id],
-                              stdout=log_file,
+                              stdout=subprocess.DEVNULL,
                               stderr=log_file)
         processes['fetchers'][fetcher_id] = proc.pid
         # Write pidfile for fetcher
@@ -328,7 +328,7 @@ def add_parser():
         os.makedirs('logs', exist_ok=True)
         log_file = open('logs/parser_out.log', 'a')
         proc = subprocess.Popen(['python', 'url_parser.py', parser_id],
-                              stdout=log_file,
+                              stdout=subprocess.DEVNULL,
                               stderr=log_file)
         processes['parsers'][parser_id] = proc.pid
         # Write pidfile
@@ -795,5 +795,5 @@ if __name__ == '__main__':
     # Ensure database and schema are initialized/up-to-date
     init_database()
     
-    app.run(debug=True, host='0.0.0.0', port=5500)
+    app.run(debug=False, host='0.0.0.0', port=5500)
 

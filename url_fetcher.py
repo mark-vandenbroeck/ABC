@@ -12,13 +12,16 @@ from bs4 import BeautifulSoup
 from database import get_db_connection, DB_PATH
 import re
 import logging
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 # Log file next to the database file
 LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'fetcher.log'
 logger = logging.getLogger('url_fetcher')
+logger.setLevel(logging.INFO)
 if not logger.handlers:
-    fh = logging.FileHandler(LOG_FILE)
+    # 50 MB = 52428800 bytes
+    fh = RotatingFileHandler(LOG_FILE, maxBytes=52428800, backupCount=4)
     fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(fh)
 logger.setLevel(logging.INFO)
@@ -40,7 +43,7 @@ class URLFetcher:
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
-        print(f"\nFetcher {self.fetcher_id} shutting down...")
+        logger.info(f"\nFetcher {self.fetcher_id} shutting down...")
         self.running = False
         sys.exit(0)
     
@@ -56,7 +59,7 @@ class URLFetcher:
                 rp.set_url(robots_url)
                 rp.read()
             except Exception as e:
-                print(f"Warning: Could not read robots.txt from {robots_url}: {e}")
+                logger.warning(f"Warning: Could not read robots.txt from {robots_url}: {e}")
                 # Allow all if robots.txt can't be read
                 rp.allow_all = True
             self.robots_cache[base_url] = rp
@@ -110,7 +113,7 @@ class URLFetcher:
                     if parsed.scheme in ['http', 'https']:
                         links.append(absolute_url)
         except Exception as e:
-            print(f"Error extracting links: {e}")
+            logger.error(f"Error extracting links: {e}")
         
         return links
     
@@ -154,7 +157,7 @@ class URLFetcher:
                 if cursor.rowcount > 0:
                     added += 1
             except Exception as e:
-                print(f"Error adding URL {url}: {e}")
+                logger.error(f"Error adding URL {url}: {e}")
         
         conn.commit()
         conn.close()
@@ -165,7 +168,7 @@ class URLFetcher:
         try:
             # Check robots.txt
             if not self.can_fetch(url):
-                print(f"URL {url} blocked by robots.txt")
+                logger.info(f"URL {url} blocked by robots.txt")
                 return None
             
             # Fetch the URL
@@ -177,7 +180,7 @@ class URLFetcher:
             except Exception as e:
                 # Network error / no response
                 logger.info(f"Fetcher {self.fetcher_id} - {url} - ERROR - {e}")
-                print(f"Error fetching {url}: {e}")
+                logger.error(f"Error fetching {url}: {e}")
                 return None
 
             # Log the status code for this download
@@ -188,14 +191,14 @@ class URLFetcher:
                 response.raise_for_status()
             except Exception as e:
                 # HTTP error (e.g., 404) - we already logged the status code above
-                print(f"Error fetching {url}: {e}")
+                logger.error(f"Error fetching {url}: {e}")
                 return None
 
             mime_type = response.headers.get('Content-Type', '').split(';')[0].strip()
             
             # Check if MIME type is allowed
             if not self.is_mime_type_allowed(mime_type):
-                print(f"URL {url} has disallowed MIME type: {mime_type}")
+                logger.info(f"URL {url} has disallowed MIME type: {mime_type}")
                 return {
                     'url_id': url_id,
                     'size_bytes': len(response.content),
@@ -213,9 +216,9 @@ class URLFetcher:
                     links = self.extract_links(html_text, url)
                     if links:
                         added = self.add_urls_to_database(links)
-                        print(f"Added {added} new URLs from {url}")
+                        logger.info(f"Added {added} new URLs from {url}")
                 except Exception as e:
-                    print(f"Error processing links from {url}: {e}")
+                    logger.error(f"Error processing links from {url}: {e}")
             
             return {
                 'url_id': url_id,
@@ -226,16 +229,16 @@ class URLFetcher:
             }
             
         except requests.exceptions.Timeout as e:
-            print(f"Timeout fetching {url}: {e}")
+            logger.warning(f"Timeout fetching {url}: {e}")
             return {'error_type': 'timeout', 'error_message': str(e)}
         except requests.exceptions.ConnectionError as e:
             # Could be DNS resolution error or other connection issue
             msg = str(e)
             error_type = 'dns' if 'Name or service not known' in msg or 'nodename nor servname' in msg else 'connection'
-            print(f"Connection error fetching {url}: {e}")
+            logger.error(f"Connection error fetching {url}: {e}")
             return {'error_type': error_type, 'error_message': msg}
         except Exception as e:
-            print(f"Error fetching {url}: {e}")
+            logger.error(f"Error fetching {url}: {e}")
             return {'error_type': 'other', 'error_message': str(e)}
     
     def communicate_with_dispatcher(self):
@@ -258,13 +261,13 @@ class URLFetcher:
             
             if response['status'] == 'ok' and 'urls' in response:
                 urls_batch = response['urls']
-                print(f"Fetcher {self.fetcher_id} received batch of {len(urls_batch)} URLs")
+                logger.info(f"Fetcher {self.fetcher_id} received batch of {len(urls_batch)} URLs")
                 
                 for url_info in urls_batch:
                     url_id = url_info['id']
                     url = url_info['url']
                     
-                    print(f"Fetcher {self.fetcher_id} fetching: {url}")
+                    logger.info(f"Fetcher {self.fetcher_id} fetching: {url}")
                     result = self.fetch_url(url_id, url)
                     
                     if result:
@@ -303,12 +306,12 @@ class URLFetcher:
             return response['status'] == 'ok'
             
         except Exception as e:
-            print(f"Fetcher {self.fetcher_id} communication error: {e}")
+            logger.error(f"Fetcher {self.fetcher_id} communication error: {e}")
             return False
     
     def run(self):
         """Run the fetcher loop"""
-        print(f"Fetcher {self.fetcher_id} started")
+        logger.info(f"Fetcher {self.fetcher_id} started")
         
         while self.running:
             try:
@@ -324,7 +327,7 @@ class URLFetcher:
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(f"Fetcher {self.fetcher_id} error: {e}")
+                logger.error(f"Fetcher {self.fetcher_id} error: {e}")
                 time.sleep(2)
 
 if __name__ == '__main__':
