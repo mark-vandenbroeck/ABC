@@ -121,6 +121,39 @@ def get_process_info():
                                 try: os.remove(os.path.join('run', f))
                                 except: pass
 
+    # Sync with database
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM processes")
+        
+        # Add dispatcher
+        if info['dispatcher'] and info['dispatcher']['status'] == 'running':
+            cursor.execute("INSERT INTO processes (pid, type, status) VALUES (?, ?, ?)", 
+                         (info['dispatcher']['pid'], 'dispatcher', 'running'))
+        
+        # Add purger
+        if info['purger'] and info['purger']['status'] == 'running':
+            cursor.execute("INSERT INTO processes (pid, type, status) VALUES (?, ?, ?)", 
+                         (info['purger']['pid'], 'purger', 'running'))
+            
+        # Add fetchers
+        for f in info['fetchers']:
+            if f['status'] == 'running':
+                cursor.execute("INSERT INTO processes (pid, type, status) VALUES (?, ?, ?)", 
+                             (f['pid'], f'fetcher:{f["id"]}', 'running'))
+                
+        # Add parsers
+        for p in info['parsers']:
+            if p['status'] == 'running':
+                cursor.execute("INSERT INTO processes (pid, type, status) VALUES (?, ?, ?)", 
+                             (p['pid'], f'parser:{p["id"]}', 'running'))
+                
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error syncing processes table: {e}")
+
     return info
 
 @app.route('/')
