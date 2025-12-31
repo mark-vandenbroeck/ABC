@@ -112,10 +112,10 @@ class URLParser:
             return False, False
 
     def communicate_with_dispatcher(self):
-        """Communicate with dispatcher to get URLs and submit results"""
+        """Communicate with dispatcher to get a batch of URLs and submit results"""
         try:
             with socket.create_connection((DISPATCHER_HOST, DISPATCHER_PORT), timeout=5) as sock:
-                # 1. Request a URL
+                # 1. Request batch of URLs
                 request = {'action': 'get_fetched_url'}
                 sock.sendall((json.dumps(request) + '\n').encode('utf-8'))
                 
@@ -125,27 +125,28 @@ class URLParser:
                     return
                 
                 response = json.loads(response_data)
-                if response['status'] == 'no_urls':
+                if response['status'] == 'no_urls' or 'urls' not in response:
                     return
                 
                 if response['status'] == 'ok':
-                    url_id = response['url_id']
-                    url = response['url']
+                    urls_batch = response['urls']
+                    logger.info(f"Parser {self.parser_id} received batch of {len(urls_batch)} URLs")
                     
-                    # 2. Process the URL
-                    proc_success, has_abc = self.process_url(url_id, url)
-                    
-                    # 3. Report back to dispatcher
-                    # We need a new connection for reporting result because dispatcher closes it after get_fetched_url
-                    with socket.create_connection((DISPATCHER_HOST, DISPATCHER_PORT), timeout=5) as sock2:
+                    for url_info in urls_batch:
+                        url_id = url_info['id']
+                        url = url_info['url']
+                        
+                        # 2. Process the URL
+                        proc_success, has_abc = self.process_url(url_id, url)
+                        
+                        # 3. Report back to dispatcher over the same socket
                         report = {
                             'action': 'submit_parsed_result',
                             'url_id': url_id,
                             'has_abc': has_abc
                         }
-                        sock2.sendall((json.dumps(report) + '\n').encode('utf-8'))
-                        f2 = sock2.makefile('r', encoding='utf-8')
-                        f2.readline() # Ack
+                        sock.sendall((json.dumps(report) + '\n').encode('utf-8'))
+                        f.readline() # Wait for ACK
         except Exception as e:
             logger.error(f"Communication error: {e}")
 

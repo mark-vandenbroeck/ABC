@@ -239,76 +239,65 @@ class URLFetcher:
             return {'error_type': 'other', 'error_message': str(e)}
     
     def communicate_with_dispatcher(self):
-        """Communicate with dispatcher to get URLs and submit results"""
+        """Communicate with dispatcher to get a batch of URLs and submit results"""
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.connect((DISPATCHER_HOST, DISPATCHER_PORT))
             
-            # Request a URL
+            # Request batch of URLs
             request = {'action': 'get_url'}
             sock.sendall((json.dumps(request) + '\n').encode('utf-8'))
             
-            # Receive response using makefile for readline
             f = sock.makefile('r', encoding='utf-8')
             response_data = f.readline()
             if not response_data:
                 sock.close()
                 return False
+            
             response = json.loads(response_data)
             
-            if response['status'] == 'ok':
-                url_id = response['url_id']
-                url = response['url']
+            if response['status'] == 'ok' and 'urls' in response:
+                urls_batch = response['urls']
+                print(f"Fetcher {self.fetcher_id} received batch of {len(urls_batch)} URLs")
                 
-                print(f"Fetcher {self.fetcher_id} fetching: {url}")
-                
-                # Fetch the URL
-                result = self.fetch_url(url_id, url)
-                
-                if result:
-                    # If fetch_url returned an error_type, send it so dispatcher can act (e.g., disable host)
-                    if 'error_type' in result:
+                for url_info in urls_batch:
+                    url_id = url_info['id']
+                    url = url_info['url']
+                    
+                    print(f"Fetcher {self.fetcher_id} fetching: {url}")
+                    result = self.fetch_url(url_id, url)
+                    
+                    if result:
+                        if 'error_type' in result:
+                            submit_request = {
+                                'action': 'submit_result',
+                                'url_id': url_id,
+                                'url': url,
+                                'error_type': result.get('error_type')
+                            }
+                        else:
+                            document_b64 = base64.b64encode(result['document']).decode('utf-8') if result['document'] else ''
+                            submit_request = {
+                                'action': 'submit_result',
+                                'url_id': result['url_id'],
+                                'size_bytes': result['size_bytes'],
+                                'mime_type': result['mime_type'],
+                                'document': document_b64,
+                                'http_status': result.get('http_status')
+                            }
+                    else:
+                        # Fallback for unexpected None result
                         submit_request = {
                             'action': 'submit_result',
                             'url_id': url_id,
-                            'size_bytes': 0,
-                            'mime_type': '',
-                            'document': '',
-                            'http_status': None,
-                            'error_type': result.get('error_type')
+                            'error_type': 'other'
                         }
-                        sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
-                        try:
-                            f.readline() # Ack
-                        except:
-                            pass
-                        print(f"Fetcher {self.fetcher_id} error for {url}: {result.get('error_type')}")
-                    else:
-                        # Submit result (encode binary as base64 for JSON)
-                        document_b64 = base64.b64encode(result['document']).decode('utf-8') if result['document'] else ''
-                        submit_request = {
-                            'action': 'submit_result',
-                            'url_id': result['url_id'],
-                            'size_bytes': result['size_bytes'],
-                            'mime_type': result['mime_type'],
-                            'document': document_b64,
-                            'http_status': result.get('http_status')
-                        }
-                        
-                        sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
-                        submit_response = f.readline()
-                        print(f"Fetcher {self.fetcher_id} completed: {url}")
-                else:
-                    # Mark as fetched even if failed (to avoid infinite retries)
-                    submit_request = {
-                        'action': 'submit_result',
-                        'url_id': url_id,
-                        'size_bytes': 0,
-                        'mime_type': '',
-                        'document': ''  # Empty base64 string
-                    }
+
                     sock.sendall((json.dumps(submit_request) + '\n').encode('utf-8'))
-                    f.readline() # Ack
+                    f.readline() # Wait for ACK
+                
+                sock.close()
+                return True
             
             sock.close()
             return response['status'] == 'ok'
