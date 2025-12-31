@@ -20,8 +20,8 @@ LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'fetcher.log'
 logger = logging.getLogger('url_fetcher')
 logger.setLevel(logging.INFO)
 if not logger.handlers:
-    # 50 MB = 52428800 bytes
-    fh = RotatingFileHandler(LOG_FILE, maxBytes=52428800, backupCount=4)
+    # 10 MB = 10485760 bytes
+    fh = RotatingFileHandler(LOG_FILE, maxBytes=10485760, backupCount=4)
     fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(fh)
 logger.setLevel(logging.INFO)
