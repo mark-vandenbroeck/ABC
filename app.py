@@ -1,0 +1,741 @@
+from flask import Flask, render_template, jsonify, request
+import sqlite3
+import subprocess
+import os
+import signal
+import json
+from database import get_db_connection, DB_PATH, init_database
+
+app = Flask(__name__)
+
+# Store process PIDs
+processes = {
+    'dispatcher': None,
+    'purger': None,
+    'fetchers': {},
+    'parsers': {}
+}
+
+def get_process_info():
+    """Get information about running processes"""
+    info = {
+        'dispatcher': None,
+        'purger': None,
+        'fetchers': [],
+        'parsers': []
+    }
+    
+    # Check dispatcher
+    def _read_pidfile(path):
+        try:
+            with open(path, 'r') as f:
+                return int(f.read().strip())
+        except Exception:
+            return None
+
+    if processes['dispatcher']:
+        pid = processes['dispatcher']
+        try:
+            os.kill(pid, 0)  # Check if process exists
+            info['dispatcher'] = {'pid': pid, 'status': 'running'}
+        except OSError:
+            info['dispatcher'] = {'pid': pid, 'status': 'stopped'}
+            processes['dispatcher'] = None
+    else:
+        # If we don't have an in-memory PID, check for a PID file created by start scripts
+        pidfile = os.path.join(os.getcwd(), 'run', 'dispatcher.pid')
+        pid_from_file = _read_pidfile(pidfile)
+        if pid_from_file:
+            try:
+                os.kill(pid_from_file, 0)
+                processes['dispatcher'] = pid_from_file
+                info['dispatcher'] = {'pid': pid_from_file, 'status': 'running'}
+            except OSError:
+                # Stale PID file; remove it
+                try:
+                    os.remove(pidfile)
+                except Exception:
+                    pass
+                info['dispatcher'] = {'pid': pid_from_file, 'status': 'stopped'}
+    
+    # Check purger
+    if processes['purger']:
+        pid = processes['purger']
+        try:
+            os.kill(pid, 0)
+            info['purger'] = {'pid': pid, 'status': 'running'}
+        except OSError:
+            info['purger'] = {'pid': pid, 'status': 'stopped'}
+            processes['purger'] = None
+    else:
+        pidfile = os.path.join(os.getcwd(), 'run', 'purger.pid')
+        pid_from_file = _read_pidfile(pidfile)
+        if pid_from_file:
+            try:
+                os.kill(pid_from_file, 0)
+                processes['purger'] = pid_from_file
+                info['purger'] = {'pid': pid_from_file, 'status': 'running'}
+            except OSError:
+                try:
+                    os.remove(pidfile)
+                except Exception:
+                    pass
+                info['purger'] = {'pid': pid_from_file, 'status': 'stopped'}
+
+    # Check fetchers
+    for fetcher_id, pid in list(processes['fetchers'].items()):
+        try:
+            os.kill(pid, 0)
+            info['fetchers'].append({'id': fetcher_id, 'pid': pid, 'status': 'running'})
+        except OSError:
+            info['fetchers'].append({'id': fetcher_id, 'pid': pid, 'status': 'stopped'})
+            del processes['fetchers'][fetcher_id]
+            # Try to remove pidfile
+            try: os.remove(os.path.join('run', f'fetcher.{fetcher_id}.pid'))
+            except: pass
+    
+    # Check parsers
+    for parser_id, pid in list(processes['parsers'].items()):
+        try:
+            os.kill(pid, 0)
+            info['parsers'].append({'id': parser_id, 'pid': pid, 'status': 'running'})
+        except OSError:
+            info['parsers'].append({'id': parser_id, 'pid': pid, 'status': 'stopped'})
+            del processes['parsers'][parser_id]
+            try: os.remove(os.path.join('run', f'parser.{parser_id}.pid'))
+            except: pass
+    else:
+        # Check run/ directory for any parser pidfiles we might have missed
+        if os.path.exists('run'):
+            for f in os.listdir('run'):
+                if f.startswith('parser.') and f.endswith('.pid'):
+                    parser_id = f.split('.')[1]
+                    if parser_id not in processes['parsers']:
+                        pid_from_file = _read_pidfile(os.path.join('run', f))
+                        if pid_from_file:
+                            try:
+                                os.kill(pid_from_file, 0)
+                                processes['parsers'][parser_id] = pid_from_file
+                                info['parsers'].append({'id': parser_id, 'pid': pid_from_file, 'status': 'running'})
+                            except OSError:
+                                try: os.remove(os.path.join('run', f))
+                                except: pass
+
+    return info
+
+@app.route('/')
+def index():
+    """Main dashboard"""
+    return render_template('index.html')
+
+@app.route('/api/processes', methods=['GET'])
+def get_processes():
+    """Get status of all processes"""
+    return jsonify(get_process_info())
+
+@app.route('/api/processes/dispatcher/start', methods=['POST'])
+def start_dispatcher():
+    """Start the URL dispatcher"""
+    if processes['dispatcher']:
+        try:
+            os.kill(processes['dispatcher'], 0)
+            return jsonify({'status': 'error', 'message': 'Dispatcher already running'}), 400
+        except OSError:
+            pass  # Process doesn't exist, continue
+    
+    try:
+        proc = subprocess.Popen(['python', 'url_dispatcher.py'], 
+                              stdout=subprocess.PIPE, 
+                              stderr=subprocess.PIPE)
+        processes['dispatcher'] = proc.pid
+        # Write pidfile so external scripts can see/coordinate with this process
+        try:
+            os.makedirs('run', exist_ok=True)
+            with open(os.path.join('run', 'dispatcher.pid'), 'w') as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
+        return jsonify({'status': 'ok', 'pid': proc.pid})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/dispatcher/stop', methods=['POST'])
+def stop_dispatcher():
+    """Stop the URL dispatcher"""
+    if not processes['dispatcher']:
+        return jsonify({'status': 'error', 'message': 'Dispatcher not running'}), 400
+    
+    try:
+        os.kill(processes['dispatcher'], signal.SIGTERM)
+        # Clean up pidfile if it was created
+        try:
+            pidfile = os.path.join(os.getcwd(), 'run', 'dispatcher.pid')
+            if os.path.exists(pidfile):
+                os.remove(pidfile)
+        except Exception:
+            pass
+        processes['dispatcher'] = None
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/purger/start', methods=['POST'])
+def start_purger():
+    """Start the URL purger"""
+    if processes['purger']:
+        try:
+            os.kill(processes['purger'], 0)
+            return jsonify({'status': 'error', 'message': 'Purger already running'}), 400
+        except OSError:
+            pass
+    
+    try:
+        proc = subprocess.Popen(['python', 'url_purger.py'])
+        processes['purger'] = proc.pid
+        try:
+            os.makedirs('run', exist_ok=True)
+            with open(os.path.join('run', 'purger.pid'), 'w') as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
+        return jsonify({'status': 'ok', 'pid': proc.pid})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/purger/stop', methods=['POST'])
+def stop_purger():
+    """Stop the URL purger"""
+    if not processes['purger']:
+        return jsonify({'status': 'error', 'message': 'Purger not running'}), 400
+    
+    try:
+        os.kill(processes['purger'], signal.SIGTERM)
+        try:
+            pidfile = os.path.join(os.getcwd(), 'run', 'purger.pid')
+            if os.path.exists(pidfile):
+                os.remove(pidfile)
+        except Exception:
+            pass
+        processes['purger'] = None
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/fetcher/add', methods=['POST'])
+def add_fetcher():
+    """Add a new fetcher process"""
+    data = request.json or {}
+    fetcher_id = data.get('id') or str(len(processes['fetchers']) + 1)
+    
+    if fetcher_id in processes['fetchers']:
+        try:
+            os.kill(processes['fetchers'][fetcher_id], 0)
+            return jsonify({'status': 'error', 'message': f'Fetcher {fetcher_id} already running'}), 400
+        except OSError:
+            pass
+    
+    try:
+        proc = subprocess.Popen(['python', 'url_fetcher.py', fetcher_id],
+                              stdout=subprocess.PIPE,
+                              stderr=subprocess.PIPE)
+        processes['fetchers'][fetcher_id] = proc.pid
+        # Write pidfile for fetcher
+        try:
+            os.makedirs('run', exist_ok=True)
+            with open(os.path.join('run', f'fetcher.{fetcher_id}.pid'), 'w') as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
+        return jsonify({'status': 'ok', 'id': fetcher_id, 'pid': proc.pid})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/fetcher/<fetcher_id>/remove', methods=['POST'])
+def remove_fetcher(fetcher_id):
+    """Remove a fetcher process"""
+    if fetcher_id not in processes['fetchers']:
+        return jsonify({'status': 'error', 'message': f'Fetcher {fetcher_id} not found'}), 404
+    
+    try:
+        os.kill(processes['fetchers'][fetcher_id], signal.SIGTERM)
+        # Remove pidfile if present
+        try:
+            pidfile = os.path.join(os.getcwd(), 'run', f'fetcher.{fetcher_id}.pid')
+            if os.path.exists(pidfile):
+                os.remove(pidfile)
+        except Exception:
+            pass
+        del processes['fetchers'][fetcher_id]
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/parser/add', methods=['POST'])
+def add_parser():
+    """Add a new parser process"""
+    data = request.json or {}
+    parser_id = data.get('id') or str(len(processes['parsers']) + 1)
+    
+    if parser_id in processes['parsers']:
+        try:
+            os.kill(processes['parsers'][parser_id], 0)
+            return jsonify({'status': 'error', 'message': f'Parser {parser_id} already running'}), 400
+        except OSError:
+            pass
+    
+    try:
+        proc = subprocess.Popen(['python', 'url_parser.py', parser_id])
+        processes['parsers'][parser_id] = proc.pid
+        # Write pidfile
+        try:
+            os.makedirs('run', exist_ok=True)
+            with open(os.path.join('run', f'parser.{parser_id}.pid'), 'w') as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
+        return jsonify({'status': 'ok', 'id': parser_id, 'pid': proc.pid})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/parser/<parser_id>/remove', methods=['POST'])
+def remove_parser(parser_id):
+    """Remove a parser process"""
+    if parser_id not in processes['parsers']:
+        return jsonify({'status': 'error', 'message': f'Parser {parser_id} not found'}), 404
+    
+    try:
+        os.kill(processes['parsers'][parser_id], signal.SIGTERM)
+        try:
+            pidfile = os.path.join(os.getcwd(), 'run', f'parser.{parser_id}.pid')
+            if os.path.exists(pidfile):
+                os.remove(pidfile)
+        except Exception:
+            pass
+        del processes['parsers'][parser_id]
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/urls', methods=['GET'])
+def get_urls():
+    """Get URLs from the queue with optional filters (status, url wildcard, mime wildcard)"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Get query parameters
+    status = request.args.get('status', '')
+    url_filter = (request.args.get('url_filter') or '').strip()
+    mime_filter = (request.args.get('mime_filter') or '').strip()
+    limit = int(request.args.get('limit', 100))
+    offset = int(request.args.get('offset', 0))
+
+    query = 'SELECT id, url, created_at, downloaded_at, size_bytes, status, mime_type, http_status, retries FROM urls WHERE 1=1'
+    params = []
+
+    if status:
+        if status == 'new':
+            query += ' AND (status = ? OR status IS NULL)'
+            params.append('')
+        else:
+            query += ' AND status = ?'
+            params.append(status)
+
+    # URL filter: support simple wildcards using '*'
+    if url_filter:
+        pattern = url_filter.replace('*', '%')
+        if '%' not in pattern and '_' not in pattern:
+            pattern = f'%{pattern}%'
+        query += ' AND url LIKE ?'
+        params.append(pattern)
+
+    # MIME filter: support wildcards too
+    if mime_filter:
+        mpat = mime_filter.replace('*', '%')
+        if '%' not in mpat and '_' not in mpat:
+            mpat = f'%{mpat}%'
+        query += ' AND mime_type LIKE ?'
+        params.append(mpat)
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    params.extend([limit, offset])
+
+    cursor.execute(query, params)
+    rows = cursor.fetchall()
+
+    # Get total count with same filters
+    count_query = 'SELECT COUNT(*) FROM urls WHERE 1=1'
+    count_params = []
+
+    if status:
+        if status == 'new':
+            count_query += ' AND (status = ? OR status IS NULL)'
+            count_params.append('')
+        else:
+            count_query += ' AND status = ?'
+            count_params.append(status)
+
+    if url_filter:
+        pattern = url_filter.replace('*', '%')
+        if '%' not in pattern and '_' not in pattern:
+            pattern = f'%{pattern}%'
+        count_query += ' AND url LIKE ?'
+        count_params.append(pattern)
+
+    if mime_filter:
+        mpat = mime_filter.replace('*', '%')
+        if '%' not in mpat and '_' not in mpat:
+            mpat = f'%{mpat}%'
+        count_query += ' AND mime_type LIKE ?'
+        count_params.append(mpat)
+
+    cursor.execute(count_query, count_params)
+    total = cursor.fetchone()[0]
+
+    conn.close()
+
+    urls = []
+    for row in rows:
+        urls.append({
+            'id': row[0],
+            'url': row[1],
+            'created_at': row[2],
+            'downloaded_at': row[3],
+            'size_bytes': row[4],
+            'status': row[5] or '',
+            'mime_type': row[6] or '',
+            'http_status': row[7],
+            'retries': row[8] or 0
+        })
+
+    return jsonify({
+        'urls': urls,
+        'total': total,
+        'limit': limit,
+        'offset': offset
+    })
+
+@app.route('/api/urls', methods=['POST'])
+def add_url():
+    """Add a new URL to the queue"""
+    data = request.json
+    if not data or 'url' not in data:
+        return jsonify({'status': 'error', 'message': 'URL required'}), 400
+    
+    url = data['url']
+    
+    # Reject URLs with refused filename extensions
+    try:
+        from urllib.parse import urlparse
+        import os
+        parsed = urlparse(url)
+        path = parsed.path or ''
+        _, ext = os.path.splitext(path)
+        if ext:
+            ext = ext.lstrip('.').lower()
+            conn_check = get_db_connection(); cur_check = conn_check.cursor()
+            cur_check.execute('SELECT 1 FROM refused_extensions WHERE extension = ?', (ext,))
+            if cur_check.fetchone():
+                conn_check.close()
+                return jsonify({'status': 'error', 'message': f'URLs with extension .{ext} are refused'}), 400
+            conn_check.close()
+    except Exception:
+        pass
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        from urllib.parse import urlparse
+        host = None
+        try:
+            host = urlparse(url).hostname
+        except Exception:
+            host = None
+
+        if host:
+            cursor.execute('INSERT OR IGNORE INTO urls (url, host) VALUES (?, ?)', (url, host))
+        else:
+            cursor.execute('INSERT OR IGNORE INTO urls (url) VALUES (?)', (url,))
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            return jsonify({'status': 'ok', 'message': 'URL added'})
+        else:
+            return jsonify({'status': 'error', 'message': 'URL already exists'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/urls/<int:url_id>', methods=['DELETE'])
+def delete_url(url_id):
+    """Delete a URL from the queue by ID"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute('DELETE FROM urls WHERE id = ?', (url_id,))
+        conn.commit()
+        if cursor.rowcount > 0:
+            return jsonify({'status': 'ok', 'message': 'URL deleted'})
+        else:
+            return jsonify({'status': 'error', 'message': 'URL not found'}), 404
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/mime-types', methods=['GET'])
+def get_mime_types():
+    """Get configured MIME types"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('SELECT id, pattern, enabled FROM mime_types ORDER BY pattern')
+    rows = cursor.fetchall()
+    conn.close()
+    
+    mime_types = []
+    for row in rows:
+        mime_types.append({
+            'id': row[0],
+            'pattern': row[1],
+            'enabled': bool(row[2])
+        })
+    
+    return jsonify({'mime_types': mime_types})
+
+
+# --- Refused filename extensions API ---
+@app.route('/api/refused-extensions', methods=['GET'])
+def get_refused_extensions():
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute('SELECT extension, reason, created_at FROM refused_extensions ORDER BY extension')
+    rows = cur.fetchall()
+    conn.close()
+    exts = [{'extension': r[0], 'reason': r[1], 'created_at': r[2]} for r in rows]
+    return jsonify({'refused_extensions': exts})
+
+@app.route('/api/refused-extensions', methods=['POST'])
+def add_refused_extension():
+    data = request.json or {}
+    ext = (data.get('extension') or '').strip().lstrip('.').lower()
+    reason = data.get('reason')
+    if not ext:
+        return jsonify({'status': 'error', 'message': 'extension required'}), 400
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute('INSERT OR IGNORE INTO refused_extensions (extension, reason) VALUES (?, ?)', (ext, reason))
+        conn.commit()
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/refused-extensions/<string:extension>', methods=['DELETE'])
+def delete_refused_extension(extension):
+    ext = extension.strip().lstrip('.').lower()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute('DELETE FROM refused_extensions WHERE extension = ?', (ext,))
+        conn.commit()
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/mime-types', methods=['POST'])
+def add_mime_type():
+    """Add a new MIME type pattern"""
+    data = request.json
+    if not data or 'pattern' not in data:
+        return jsonify({'status': 'error', 'message': 'Pattern required'}), 400
+    
+    pattern = data['pattern']
+    enabled = data.get('enabled', True)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('INSERT OR IGNORE INTO mime_types (pattern, enabled) VALUES (?, ?)',
+                      (pattern, 1 if enabled else 0))
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            return jsonify({'status': 'ok', 'message': 'MIME type added'})
+        else:
+            return jsonify({'status': 'error', 'message': 'Pattern already exists'}), 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/mime-types/<int:mime_id>', methods=['PUT'])
+def update_mime_type(mime_id):
+    """Update a MIME type"""
+    data = request.json
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    updates = []
+    params = []
+    
+    if 'pattern' in data:
+        updates.append('pattern = ?')
+        params.append(data['pattern'])
+    
+    if 'enabled' in data:
+        updates.append('enabled = ?')
+        params.append(1 if data['enabled'] else 0)
+    
+    if not updates:
+        return jsonify({'status': 'error', 'message': 'No fields to update'}), 400
+    
+    params.append(mime_id)
+    query = f"UPDATE mime_types SET {', '.join(updates)} WHERE id = ?"
+    
+    try:
+        cursor.execute(query, params)
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            return jsonify({'status': 'ok', 'message': 'MIME type updated'})
+        else:
+            return jsonify({'status': 'error', 'message': 'MIME type not found'}), 404
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/mime-types/<int:mime_id>', methods=['DELETE'])
+def delete_mime_type(mime_id):
+    """Delete a MIME type"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute('DELETE FROM mime_types WHERE id = ?', (mime_id,))
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            return jsonify({'status': 'ok', 'message': 'MIME type deleted'})
+        else:
+            return jsonify({'status': 'error', 'message': 'MIME type not found'}), 404
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    finally:
+        conn.close()
+
+@app.route('/api/hosts', methods=['GET'])
+def get_hosts():
+    """Get hosts table contents"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT host, last_access, last_http_status, downloads, disabled, disabled_reason, disabled_at FROM hosts ORDER BY host')
+    rows = cursor.fetchall()
+    conn.close()
+
+    hosts = []
+    for row in rows:
+        hosts.append({
+            'host': row[0],
+            'last_access': row[1],
+            'last_http_status': row[2],
+            'downloads': row[3] or 0,
+            'disabled': bool(row[4]) if row[4] is not None else False,
+            'disabled_reason': row[5],
+            'disabled_at': row[6]
+        })
+
+    return jsonify({'hosts': hosts})
+
+
+@app.route('/api/hosts/<path:host>', methods=['PUT'])
+def update_host(host):
+    """Update host record, e.g., clear disabled flag"""
+    try:
+        payload = request.get_json() or {}
+        if 'disabled' not in payload:
+            return jsonify({'status': 'error', 'message': 'missing disabled field'}), 400
+        disabled = 1 if payload.get('disabled') else 0
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute('INSERT OR IGNORE INTO hosts (host) VALUES (?)', (host,))
+
+        if disabled:
+            # Keep any existing disabled_reason but record last_access
+            cur.execute('UPDATE hosts SET disabled = 1, last_access = CURRENT_TIMESTAMP WHERE host = ?', (host,))
+            print(f"API: set host {host} disabled via API")
+        else:
+            # Clearing disabled: remove reason/timestamp
+            cur.execute('UPDATE hosts SET disabled = 0, disabled_reason = NULL, disabled_at = NULL, last_access = CURRENT_TIMESTAMP WHERE host = ?', (host,))
+            print(f"API: cleared disabled flag for host {host}")
+
+        conn.commit()
+        conn.close()
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        print(f"API: error updating host {host}: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/stats', methods=['GET'])
+def get_stats():
+    """Get crawler statistics"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    stats = {}
+    
+    # Total URLs
+    cursor.execute('SELECT COUNT(*) FROM urls')
+    stats['total_urls'] = cursor.fetchone()[0]
+    
+    # URLs by status
+    cursor.execute('''
+        SELECT status, COUNT(*) 
+        FROM urls 
+        GROUP BY status
+    ''')
+    stats['by_status'] = {row[0] or 'new': row[1] for row in cursor.fetchall()}
+    
+    # Total size
+    cursor.execute('SELECT SUM(size_bytes) FROM urls WHERE size_bytes IS NOT NULL')
+    result = cursor.fetchone()[0]
+    stats['total_size_bytes'] = result or 0
+    
+    # MIME types distribution
+    cursor.execute('''
+        SELECT mime_type, COUNT(*) 
+        FROM urls 
+        WHERE mime_type IS NOT NULL AND mime_type != ''
+        GROUP BY mime_type
+        ORDER BY COUNT(*) DESC
+        LIMIT 10
+    ''')
+    stats['top_mime_types'] = {row[0]: row[1] for row in cursor.fetchall()}
+    
+    # New metrics
+    cursor.execute("SELECT COUNT(*) FROM urls WHERE status = 'parsed'")
+    stats['total_parsed'] = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM urls WHERE has_abc = 1")
+    stats['total_with_abc'] = cursor.fetchone()[0]
+
+    conn.close()
+    
+    return jsonify(stats)
+
+if __name__ == '__main__':
+    # Ensure database and schema are initialized/up-to-date
+    init_database()
+    
+    app.run(debug=True, host='0.0.0.0', port=5500)
+

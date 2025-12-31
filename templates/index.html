@@ -1,0 +1,1191 @@
+<!DOCTYPE html>
+<html lang="nl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web Crawler Control Panel</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 10px 16px;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .tab.active {
+            background: #007bff;
+            color: #fff;
+            border-color: #007bff;
+        }
+
+        .tab:focus {
+            outline: 2px solid #0056b3;
+        }
+
+        /* Hide sections by default, show active */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Help icon for small tooltips */
+        .help-icon {
+            display: inline-block;
+            margin-left: 6px;
+            color: #6c757d;
+            cursor: help;
+            border-bottom: 1px dotted #6c757d;
+            font-size: 0.95em;
+            line-height: 1;
+        }
+
+        .help-icon:hover {
+            color: #333;
+        }
+
+        .section h2 {
+            color: #555;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+        }
+
+        .button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+
+        .button:hover {
+            background: #0056b3;
+        }
+
+        .button.danger {
+            background: #dc3545;
+        }
+
+        .button.danger:hover {
+            background: #c82333;
+        }
+
+        .button.success {
+            background: #28a745;
+        }
+
+        .button.success:hover {
+            background: #218838;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .status.running {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.stopped {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th,
+        td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+        }
+
+        tr:hover {
+            background: #f8f9fa;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="url"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .url-cell {
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .pagination {
+            margin-top: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        /* Compact view: tighter spacing and smaller font for dense lists */
+        body.compact {
+            font-size: 13px;
+            line-height: 1.05;
+        }
+
+        body.compact .section {
+            padding: 8px;
+        }
+
+        /* Reduce vertical padding to make each table row more compact */
+        body.compact table th,
+        body.compact table td {
+            padding: 3px 6px;
+        }
+
+        body.compact table td,
+        body.compact table th {
+            line-height: 1.05;
+        }
+
+        body.compact .button {
+            padding: 4px 6px;
+            font-size: 12px;
+        }
+
+        body.compact .status {
+            padding: 2px 6px;
+            font-size: 11px;
+        }
+
+        body.compact h1 {
+            font-size: 20px;
+        }
+
+        body.compact .url-cell {
+            max-width: 280px;
+        }
+
+        body.compact .tabs {
+            gap: 6px;
+        }
+
+        body.compact .stat-value {
+            font-size: 18px;
+        }
+
+        /* Filters row: compact inline layout for URL Queue filters */
+        .filters-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+        }
+
+        .filters-row label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filters-row input[type="text"] {
+            min-width: 220px;
+            max-width: 420px;
+        }
+
+        @media (max-width: 720px) {
+            .filters-row input[type="text"] {
+                min-width: 140px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <h1>🕷️ Web Crawler Control Panel</h1>
+            <label style="font-size:0.95em; color:#555; display:flex; align-items:center; gap:6px;">
+                <input type="checkbox" id="compact-toggle" aria-label="Compact view">
+                Compact view
+            </label>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="Main tabs">
+            <div class="tab active" data-tab="process-control" role="tab" tabindex="0">Process control</div>
+            <div class="tab" data-tab="statistics" role="tab" tabindex="0">Statistics</div>
+            <div class="tab" data-tab="url-queue" role="tab" tabindex="0">URL Queue</div>
+            <div class="tab" data-tab="hosts" role="tab" tabindex="0">Hosts</div>
+            <div class="tab" data-tab="mime-types" role="tab" tabindex="0">Configuration</div>
+        </div>
+
+        <!-- Process Control Section -->
+        <div id="process-control" class="section tab-content active">
+            <h2>Process Control</h2>
+            <div>
+                <h3>Dispatcher
+                    <span id="dispatcher-status" class="status stopped">Stopped</span>
+                </h3>
+                <button id="start-dispatcher-btn" class="button success" onclick="startDispatcher()">Start
+                    Dispatcher</button>
+                <button id="stop-dispatcher-btn" class="button danger" onclick="stopDispatcher()"
+                    style="display:none;">Stop Dispatcher</button>
+            </div>
+            <div style="margin-top: 20px;">
+                <h3>URL Purger
+                    <span id="purger-status" class="status stopped">Stopped</span>
+                </h3>
+                <button id="start-purger-btn" class="button success" onclick="startPurger()">Start Purger</button>
+                <button id="stop-purger-btn" class="button danger" onclick="stopPurger()" style="display:none;">Stop
+                    Purger</button>
+                <p style="font-size: 0.9em; color: #666; margin-top: 5px;">Cleans up database every 60 seconds (Refused
+                    extensions & DNS errors).</p>
+            </div>
+            <div style="margin-top: 20px;">
+                <h3>Fetchers</h3>
+                <div id="fetchers-list"></div>
+                <button class="button success" onclick="addFetcher()">Add Fetcher</button>
+            </div>
+            <div style="margin-top: 20px;">
+                <h3>Parsers</h3>
+                <div id="parsers-list"></div>
+                <button class="button success" onclick="addParser()">Add Parser</button>
+            </div>
+        </div>
+
+        <!-- Statistics Section -->
+        <div id="statistics" class="section tab-content">
+            <h2>Statistics</h2>
+            <div class="stats-grid" id="stats-grid"></div>
+        </div>
+
+        <!-- URL Management Section -->
+        <div id="url-queue" class="section tab-content">
+            <h2>URL Queue</h2>
+            <div class="form-group">
+                <label>Add New URL:</label>
+                <input type="url" id="new-url" placeholder="https://example.com">
+                <button class="button" onclick="addUrl()" style="margin-top: 10px;">Add URL</button>
+            </div>
+            <div>
+                <div class="filters-row">
+                    <label>
+                        <span>Status</span>
+                        <select id="status-filter" onchange="loadUrls()">
+                            <option value="">All</option>
+                            <option value="new">New</option>
+                            <option value="fetched">Fetched</option>
+                            <option value="parsed">Parsed</option>
+                        </select>
+                    </label>
+
+                    <label>
+                        <span>URL filter
+                            <span class="help-icon"
+                                title="Wildcards: '*' vervangt een willekeurige tekenreeks. Voorbeeld: 'https://*.example.com/*'">ⓘ</span>
+                        </span>
+                        <input type="text" id="url-filter" placeholder="e.g., https://*.example.com/*">
+                    </label>
+
+                    <label>
+                        <span>MIME filter
+                            <span class="help-icon"
+                                title="Wildcards: '*' vervangt een willekeurige tekenreeks. Voorbeeld: 'text/*'">ⓘ</span>
+                        </span>
+                        <input type="text" id="mime-filter" placeholder="e.g., text/*">
+                    </label>
+
+                    <button class="button" onclick="applyFilters()">Apply Filters</button>
+                    <button class="button" onclick="clearFilters()">Clear</button>
+                </div>
+            </div>
+            <table id="urls-table">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>URL</th>
+                        <th>Created</th>
+                        <th>Downloaded</th>
+                        <th>Size (bytes)</th>
+                        <th>Status</th>
+                        <th>MIME Type</th>
+                        <th>HTTP Status</th>
+                        <th>Retries</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="urls-tbody"></tbody>
+            </table>
+            <div class="pagination">
+                <button class="button" onclick="previousPage()">Previous</button>
+                <span id="page-info">Page 1</span>
+                <button class="button" onclick="nextPage()">Next</button>
+            </div>
+        </div>
+
+        <!-- Hosts Section -->
+        <div id="hosts" class="section tab-content">
+            <h2>Hosts</h2>
+            <table id="hosts-table">
+                <thead>
+                    <tr>
+                        <th>Host</th>
+                        <th>Last Access</th>
+                        <th>Last HTTP Status</th>
+                        <th>Downloads</th>
+                        <th>Disabled</th>
+                        <th>Reason</th>
+                        <th>Disabled At</th>
+                    </tr>
+                </thead>
+                <tbody id="hosts-tbody"></tbody>
+            </table>
+        </div>
+
+        <!-- MIME Types Configuration -->
+        <div id="mime-types" class="section tab-content">
+            <h2>MIME Types Configuration</h2>
+            <div class="form-group">
+                <label>Add MIME Type Pattern (supports wildcards like text/*):</label>
+                <input type="text" id="new-mime-pattern" placeholder="text/html">
+                <div class="checkbox-group" style="margin-top: 10px;">
+                    <input type="checkbox" id="mime-enabled" checked>
+                    <label for="mime-enabled">Enabled</label>
+                </div>
+                <button class="button" onclick="addMimeType()" style="margin-top: 10px;">Add MIME Type</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Pattern</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="mime-types-tbody"></tbody>
+            </table>
+
+            <hr />
+            <h3>Refused filename extensions</h3>
+            <div id="refused-extensions-section">
+                <div class="form-row align-items-center mb-2"
+                    style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                    <input id="refused-ext-input" class="form-control" placeholder="e.g. exe"
+                        style="width:160px; padding:6px;" />
+                    <input id="refused-ext-reason" class="form-control" placeholder="optional reason"
+                        style="flex:1; padding:6px;" />
+                    <button id="add-refused-ext" class="button">Add</button>
+                </div>
+
+                <div id="refused-exts-list" class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Extension</th>
+                                <th>Reason</th>
+                                <th>Created At</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="refused-exts-tbody">
+                            <!-- populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPage = 0;
+        const pageSize = 50;
+
+        // Load initial data
+        window.onload = function () {
+            loadProcesses();
+            loadUrls();
+            loadHosts();
+            loadMimeTypes();
+            loadRefusedExtensions();
+            loadStats();
+            setInterval(loadProcesses, 2000);
+            setInterval(loadUrls, 5000);
+            setInterval(loadHosts, 5000);
+            setInterval(loadStats, 5000);
+
+            // Refused extensions handlers
+            const addRefBtn = document.getElementById('add-refused-ext');
+            if (addRefBtn) addRefBtn.addEventListener('click', addRefusedExtension);
+            const extInput = document.getElementById('refused-ext-input');
+            const reasonInput = document.getElementById('refused-ext-reason');
+            if (extInput) extInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRefusedExtension(); });
+            if (reasonInput) reasonInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRefusedExtension(); });
+
+            // Tab logic: wire tabs and restore last selected tab
+            const tabs = document.querySelectorAll('.tab');
+            function switchTab(name, save = true) {
+                tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === name));
+                if (save) localStorage.setItem('activeTab', name);
+            }
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+                tab.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.dataset.tab); }
+                });
+            });
+
+            const initial = localStorage.getItem('activeTab') || 'process-control';
+            // Restore URL/MIME filters if present
+            const savedUrlFilter = localStorage.getItem('urlFilter');
+            const savedMimeFilter = localStorage.getItem('mimeFilter');
+            if (savedUrlFilter && document.getElementById('url-filter')) document.getElementById('url-filter').value = savedUrlFilter;
+            if (savedMimeFilter && document.getElementById('mime-filter')) document.getElementById('mime-filter').value = savedMimeFilter;
+            switchTab(initial, false);
+
+            // Restore compact view preference
+            const compactToggle = document.getElementById('compact-toggle');
+            const compactPref = localStorage.getItem('compactView') === '1';
+            if (compactToggle) {
+                compactToggle.checked = compactPref;
+                if (compactPref) document.body.classList.add('compact');
+                compactToggle.addEventListener('change', (e) => {
+                    if (e.target.checked) {
+                        document.body.classList.add('compact');
+                        localStorage.setItem('compactView', '1');
+                    } else {
+                        document.body.classList.remove('compact');
+                        localStorage.removeItem('compactView');
+                    }
+                });
+            }
+        };
+
+        async function loadProcesses() {
+            try {
+                const response = await fetch('/api/processes');
+                const data = await response.json();
+
+                // Update dispatcher status
+                const dispatcherStatus = document.getElementById('dispatcher-status');
+                const startBtn = document.getElementById('start-dispatcher-btn');
+                const stopBtn = document.getElementById('stop-dispatcher-btn');
+                if (data.dispatcher && data.dispatcher.status === 'running') {
+                    dispatcherStatus.textContent = 'Running (PID: ' + data.dispatcher.pid + ')';
+                    dispatcherStatus.className = 'status running';
+                    if (startBtn) startBtn.style.display = 'none';
+                    if (stopBtn) stopBtn.style.display = 'inline-block';
+                } else {
+                    dispatcherStatus.textContent = 'Stopped';
+                    dispatcherStatus.className = 'status stopped';
+                    if (startBtn) startBtn.style.display = 'inline-block';
+                    if (stopBtn) stopBtn.style.display = 'none';
+                }
+
+                // Update purger status
+                const purgerStatus = document.getElementById('purger-status');
+                const startPurgerBtn = document.getElementById('start-purger-btn');
+                const stopPurgerBtn = document.getElementById('stop-purger-btn');
+                if (data.purger && data.purger.status === 'running') {
+                    purgerStatus.textContent = 'Running (PID: ' + data.purger.pid + ')';
+                    purgerStatus.className = 'status running';
+                    if (startPurgerBtn) startPurgerBtn.style.display = 'none';
+                    if (stopPurgerBtn) stopPurgerBtn.style.display = 'inline-block';
+                } else {
+                    purgerStatus.textContent = 'Stopped';
+                    purgerStatus.className = 'status stopped';
+                    if (startPurgerBtn) startPurgerBtn.style.display = 'inline-block';
+                    if (stopPurgerBtn) stopPurgerBtn.style.display = 'none';
+                }
+
+                // Update fetchers list
+                const fetchersList = document.getElementById('fetchers-list');
+                fetchersList.innerHTML = '';
+                data.fetchers.forEach(fetcher => {
+                    const div = document.createElement('div');
+                    div.style.marginBottom = '10px';
+                    div.innerHTML = `
+                        Fetcher ${fetcher.id} 
+                        <span class="status ${fetcher.status}">${fetcher.status} (PID: ${fetcher.pid})</span>
+                        <button class="button danger" onclick="removeFetcher('${fetcher.id}')">Remove</button>
+                    `;
+                    fetchersList.appendChild(div);
+                });
+
+                // Update parsers list
+                const parsersList = document.getElementById('parsers-list');
+                parsersList.innerHTML = '';
+                data.parsers.forEach(parser => {
+                    const div = document.createElement('div');
+                    div.style.marginBottom = '10px';
+                    div.innerHTML = `
+                        Parser ${parser.id} 
+                        <span class="status ${parser.status}">${parser.status} (PID: ${parser.pid})</span>
+                        <button class="button danger" onclick="removeParser('${parser.id}')">Remove</button>
+                    `;
+                    parsersList.appendChild(div);
+                });
+            } catch (error) {
+                console.error('Error loading processes:', error);
+            }
+        }
+
+        async function startDispatcher() {
+            try {
+                const response = await fetch('/api/processes/dispatcher/start', { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error starting dispatcher: ' + error);
+            }
+        }
+
+        async function stopDispatcher() {
+            try {
+                const response = await fetch('/api/processes/dispatcher/stop', { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error stopping dispatcher: ' + error);
+            }
+        }
+
+        async function startPurger() {
+            try {
+                const response = await fetch('/api/processes/purger/start', { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error starting purger: ' + error);
+            }
+        }
+
+        async function stopPurger() {
+            try {
+                const response = await fetch('/api/processes/purger/stop', { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error stopping purger: ' + error);
+            }
+        }
+
+        async function addFetcher() {
+            try {
+                const response = await fetch('/api/processes/fetcher/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({})
+                });
+
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text);
+                }
+
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+
+            } catch (error) {
+                console.error(error);
+                alert('Error adding fetcher: ' + error.message);
+            }
+        }
+
+        async function removeFetcher(fetcherId) {
+            try {
+                const response = await fetch(`/api/processes/fetcher/${fetcherId}/remove`, { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error removing fetcher: ' + error);
+            }
+        }
+
+        async function addParser() {
+            try {
+                const response = await fetch('/api/processes/parser/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error adding parser: ' + error);
+            }
+        }
+
+        async function removeParser(parserId) {
+            try {
+                const response = await fetch(`/api/processes/parser/${parserId}/remove`, { method: 'POST' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadProcesses();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error removing parser: ' + error);
+            }
+        }
+
+        async function loadUrls() {
+            try {
+                const status = document.getElementById('status-filter').value;
+                const urlFilter = document.getElementById('url-filter') ? document.getElementById('url-filter').value.trim() : '';
+                const mimeFilter = document.getElementById('mime-filter') ? document.getElementById('mime-filter').value.trim() : '';
+                const qs = `limit=${pageSize}&offset=${currentPage * pageSize}&status=${encodeURIComponent(status)}&url_filter=${encodeURIComponent(urlFilter)}&mime_filter=${encodeURIComponent(mimeFilter)}`;
+                const response = await fetch(`/api/urls?${qs}`);
+                const data = await response.json();
+
+                const tbody = document.getElementById('urls-tbody');
+                tbody.innerHTML = '';
+
+                data.urls.forEach(url => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${url.id}</td>
+                        <td class="url-cell" title="${url.url}"><a href="${url.url}" target="_blank" rel="noopener noreferrer">${url.url}</a></td>
+                        <td>${url.created_at || ''}</td>
+                        <td>${url.downloaded_at || ''}</td>
+                        <td>${url.size_bytes || ''}</td>
+                        <td>${url.status || 'new'}</td>
+                        <td>${url.mime_type || ''}</td>
+                        <td>${url.http_status ?? ''}</td>
+                        <td>${url.retries ?? 0}</td>
+                        <td><button class="button danger" onclick="deleteUrl(${url.id})">Delete</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('page-info').textContent =
+                    `Page ${currentPage + 1} (${data.total} total)`;
+            } catch (error) {
+                console.error('Error loading URLs:', error);
+            }
+        }
+
+        function previousPage() {
+            if (currentPage > 0) {
+                currentPage--;
+                loadUrls();
+            }
+        }
+
+        function applyFilters() {
+            // persist filters and reload
+            const urlFilter = document.getElementById('url-filter') ? document.getElementById('url-filter').value : '';
+            const mimeFilter = document.getElementById('mime-filter') ? document.getElementById('mime-filter').value : '';
+            localStorage.setItem('urlFilter', urlFilter);
+            localStorage.setItem('mimeFilter', mimeFilter);
+            currentPage = 0;
+            loadUrls();
+        }
+
+        function clearFilters() {
+            if (document.getElementById('url-filter')) document.getElementById('url-filter').value = '';
+            if (document.getElementById('mime-filter')) document.getElementById('mime-filter').value = '';
+            localStorage.removeItem('urlFilter');
+            localStorage.removeItem('mimeFilter');
+            currentPage = 0;
+            loadUrls();
+        }
+
+        function nextPage() {
+            currentPage++;
+            loadUrls();
+        }
+
+        async function addUrl() {
+            const url = document.getElementById('new-url').value;
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/urls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    document.getElementById('new-url').value = '';
+                    loadUrls();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error adding URL: ' + error);
+            }
+        }
+
+        async function deleteUrl(id) {
+            if (!confirm('Are you sure you want to delete this URL?')) return;
+            try {
+                const response = await fetch(`/api/urls/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadUrls();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error deleting URL: ' + error);
+            }
+        }
+
+        async function loadMimeTypes() {
+            try {
+                const response = await fetch('/api/mime-types');
+                const data = await response.json();
+
+                const tbody = document.getElementById('mime-types-tbody');
+                tbody.innerHTML = '';
+
+                data.mime_types.forEach(mime => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${mime.id}</td>
+                        <td>${mime.pattern}</td>
+                        <td>${mime.enabled ? 'Yes' : 'No'}</td>
+                        <td>
+                            <button class="button" onclick="toggleMimeType(${mime.id}, ${!mime.enabled})">
+                                ${mime.enabled ? 'Disable' : 'Enable'}
+                            </button>
+                            <button class="button danger" onclick="deleteMimeType(${mime.id})">Delete</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Error loading MIME types:', error);
+            }
+        }
+
+        // --- Refused extensions management ---
+        async function loadRefusedExtensions() {
+            try {
+                const resp = await fetch('/api/refused-extensions');
+                if (!resp.ok) throw new Error('Failed to fetch');
+                const data = await resp.json();
+                const items = (data && data.refused_extensions) ? data.refused_extensions : [];
+                const tbody = document.getElementById('refused-exts-tbody');
+                if (!tbody) return;
+                tbody.innerHTML = '';
+                const esc = s => s ? String(s).replace(/[&"'<>\n]/g, function (m) { return ({ '&': '&amp;', '"': '&quot;', "'": "&#39;", '<': '&lt;', '>': '&gt;', '\n': ' ' })[m]; }) : '';
+                items.forEach(it => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                      <td><code>${esc(it.extension)}</code></td>
+                      <td>${esc(it.reason || '')}</td>
+                      <td>${esc(it.created_at || '')}</td>
+                      <td><button class="button danger" data-ext="${esc(it.extension)}">Remove</button></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                tbody.querySelectorAll('button[data-ext]').forEach(btn => {
+                    btn.addEventListener('click', async () => {
+                        const ext = btn.getAttribute('data-ext');
+                        btn.disabled = true;
+                        const res = await fetch(`/api/refused-extensions/${encodeURIComponent(ext)}`, { method: 'DELETE' });
+                        if (res.ok) loadRefusedExtensions(); else { btn.disabled = false; alert('Failed to remove extension'); }
+                    });
+                });
+            } catch (e) { console.error('Error loading refused extensions:', e); }
+        }
+
+        async function addRefusedExtension() {
+            const input = document.getElementById('refused-ext-input');
+            const reason = document.getElementById('refused-ext-reason');
+            if (!input) return;
+            const raw = (input.value || '').trim();
+            if (!raw) return;
+            const ext = raw.replace(/^\./, '').toLowerCase();
+            const payload = { extension: ext, reason: (reason && reason.value) ? reason.value.trim() : '' };
+            const btn = document.getElementById('add-refused-ext');
+            if (btn) btn.disabled = true;
+            try {
+                const res = await fetch('/api/refused-extensions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (res.ok) {
+                    input.value = '';
+                    if (reason) reason.value = '';
+                    loadRefusedExtensions();
+                } else {
+                    const j = await res.json().catch(() => ({ message: 'error' }));
+                    alert('Failed to add: ' + (j.message || j.error || res.status));
+                }
+            } catch (e) {
+                alert('Error adding extension: ' + e);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        async function loadHosts() {
+            try {
+                const response = await fetch('/api/hosts');
+                const data = await response.json();
+
+                const tbody = document.getElementById('hosts-tbody');
+                tbody.innerHTML = '';
+
+                data.hosts.forEach(h => {
+                    const tr = document.createElement('tr');
+
+                    // Host cell
+                    const tdHost = document.createElement('td');
+                    tdHost.textContent = h.host;
+                    tr.appendChild(tdHost);
+
+                    // Last access
+                    const tdLast = document.createElement('td');
+                    tdLast.textContent = h.last_access || '';
+                    tr.appendChild(tdLast);
+
+                    // Last HTTP status
+                    const tdStatus = document.createElement('td');
+                    tdStatus.textContent = h.last_http_status ?? '';
+                    tr.appendChild(tdStatus);
+
+                    // Downloads
+                    const tdDownloads = document.createElement('td');
+                    tdDownloads.textContent = h.downloads ?? 0;
+                    tr.appendChild(tdDownloads);
+
+                    // Disabled / Enable button
+                    const tdDisabled = document.createElement('td');
+                    if (h.disabled) {
+                        const span = document.createElement('span');
+                        span.className = 'badge danger';
+                        span.textContent = 'Disabled';
+                        tdDisabled.appendChild(span);
+
+                        const btn = document.createElement('button');
+                        btn.className = 'button';
+                        btn.textContent = 'Enable';
+                        // Use addEventListener to avoid quoting/escaping issues
+                        btn.addEventListener('click', () => enableHost(h.host, btn));
+                        tdDisabled.appendChild(document.createTextNode(' '));
+                        tdDisabled.appendChild(btn);
+                    } else {
+                        const span = document.createElement('span');
+                        span.className = 'badge success';
+                        span.textContent = 'Active';
+                        tdDisabled.appendChild(span);
+                    }
+                    tr.appendChild(tdDisabled);
+
+                    // Reason
+                    const tdReason = document.createElement('td');
+                    tdReason.textContent = h.disabled_reason || '';
+                    tr.appendChild(tdReason);
+
+                    // Disabled at
+                    const tdDisabledAt = document.createElement('td');
+                    tdDisabledAt.textContent = h.disabled_at || '';
+                    tr.appendChild(tdDisabledAt);
+
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Error loading hosts:', error);
+            }
+        }
+
+        async function addMimeType() {
+            const pattern = document.getElementById('new-mime-pattern').value;
+            const enabled = document.getElementById('mime-enabled').checked;
+
+            if (!pattern) {
+                alert('Please enter a pattern');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/mime-types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pattern: pattern, enabled: enabled })
+                });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    document.getElementById('new-mime-pattern').value = '';
+                    loadMimeTypes();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error adding MIME type: ' + error);
+            }
+        }
+
+        async function toggleMimeType(id, enabled) {
+            try {
+                const response = await fetch(`/api/mime-types/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadMimeTypes();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error updating MIME type: ' + error);
+            }
+        }
+
+        async function deleteMimeType(id) {
+            if (!confirm('Are you sure you want to delete this MIME type?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/mime-types/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.status === 'ok') {
+                    loadMimeTypes();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            } catch (error) {
+                alert('Error deleting MIME type: ' + error);
+            }
+        }
+
+        async function enableHost(host, button) {
+            if (!confirm(`Enable host ${host}?`)) return;
+            if (button) {
+                button.disabled = true;
+                const original = button.textContent;
+                button.textContent = 'Enabling...';
+                try {
+                    const response = await fetch(`/api/hosts/${encodeURIComponent(host)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ disabled: false })
+                    });
+                    const data = await response.json();
+                    if (data.status === 'ok') {
+                        loadHosts();
+                    } else {
+                        alert('Error: ' + data.message);
+                        button.disabled = false;
+                        button.textContent = original;
+                    }
+                } catch (error) {
+                    alert('Error enabling host: ' + error);
+                    button.disabled = false;
+                    button.textContent = original;
+                }
+            } else {
+                // Fallback if called without a button element
+                try {
+                    const response = await fetch(`/api/hosts/${encodeURIComponent(host)}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ disabled: false })
+                    });
+                    const data = await response.json();
+                    if (data.status === 'ok') loadHosts(); else alert('Error: ' + data.message);
+                } catch (e) {
+                    alert('Error enabling host: ' + e);
+                }
+            }
+        }
+
+        async function loadStats() {
+            try {
+                const response = await fetch('/api/stats');
+                const data = await response.json();
+
+                const grid = document.getElementById('stats-grid');
+                grid.innerHTML = `
+                    <div class="stat-card">
+                        <div class="stat-label">Total URLs</div>
+                        <div class="stat-value">${data.total_urls || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">New URLs</div>
+                        <div class="stat-value">${data.by_status?.new || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Fetched URLs</div>
+                        <div class="stat-value">${data.by_status?.fetched || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Parsed Documents</div>
+                        <div class="stat-value">${data.total_parsed || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Contains Tunes</div>
+                        <div class="stat-value">${data.total_with_abc || 0}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Size</div>
+                        <div class="stat-value">${formatBytes(data.total_size_bytes || 0)}</div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+    </script>
+</body>
+
+</html>
