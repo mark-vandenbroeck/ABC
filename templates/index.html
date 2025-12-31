@@ -400,6 +400,11 @@
                         <input type="text" id="mime-filter" placeholder="e.g., text/*">
                     </label>
 
+                    <label style="flex-direction: row; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="abc-filter" onchange="loadUrls()" style="width: auto;">
+                        <span>Only with tunes</span>
+                    </label>
+
                     <button class="button" onclick="applyFilters()">Apply Filters</button>
                     <button class="button" onclick="clearFilters()">Clear</button>
                 </div>
@@ -773,7 +778,8 @@
                 const status = document.getElementById('status-filter').value;
                 const urlFilter = document.getElementById('url-filter') ? document.getElementById('url-filter').value.trim() : '';
                 const mimeFilter = document.getElementById('mime-filter') ? document.getElementById('mime-filter').value.trim() : '';
-                const qs = `limit=${pageSize}&offset=${currentPage * pageSize}&status=${encodeURIComponent(status)}&url_filter=${encodeURIComponent(urlFilter)}&mime_filter=${encodeURIComponent(mimeFilter)}`;
+                const hasAbc = document.getElementById('abc-filter').checked;
+                const qs = `limit=${pageSize}&offset=${currentPage * pageSize}&status=${encodeURIComponent(status)}&url_filter=${encodeURIComponent(urlFilter)}&mime_filter=${encodeURIComponent(mimeFilter)}&has_abc=${hasAbc}`;
                 const response = await fetch(`/api/urls?${qs}`);
                 const data = await response.json();
 
@@ -815,8 +821,10 @@
             // persist filters and reload
             const urlFilter = document.getElementById('url-filter') ? document.getElementById('url-filter').value : '';
             const mimeFilter = document.getElementById('mime-filter') ? document.getElementById('mime-filter').value : '';
+            const abcFilter = document.getElementById('abc-filter').checked;
             localStorage.setItem('urlFilter', urlFilter);
             localStorage.setItem('mimeFilter', mimeFilter);
+            localStorage.setItem('abcFilter', abcFilter);
             currentPage = 0;
             loadUrls();
         }
@@ -824,8 +832,10 @@
         function clearFilters() {
             if (document.getElementById('url-filter')) document.getElementById('url-filter').value = '';
             if (document.getElementById('mime-filter')) document.getElementById('mime-filter').value = '';
+            if (document.getElementById('abc-filter')) document.getElementById('abc-filter').checked = false;
             localStorage.removeItem('urlFilter');
             localStorage.removeItem('mimeFilter');
+            localStorage.removeItem('abcFilter');
             currentPage = 0;
             loadUrls();
         }

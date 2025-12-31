@@ -326,6 +326,7 @@ def get_urls():
     status = request.args.get('status', '')
     url_filter = (request.args.get('url_filter') or '').strip()
     mime_filter = (request.args.get('mime_filter') or '').strip()
+    has_abc = request.args.get('has_abc', '')
     limit = int(request.args.get('limit', 100))
     offset = int(request.args.get('offset', 0))
 
@@ -339,6 +340,9 @@ def get_urls():
         else:
             query += ' AND status = ?'
             params.append(status)
+
+    if has_abc == 'true':
+        query += ' AND has_abc = 1'
 
     # URL filter: support simple wildcards using '*'
     if url_filter:
@@ -373,6 +377,9 @@ def get_urls():
         else:
             count_query += ' AND status = ?'
             count_params.append(status)
+
+    if has_abc == 'true':
+        count_query += ' AND has_abc = 1'
 
     if url_filter:
         pattern = url_filter.replace('*', '%')
