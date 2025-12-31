@@ -13,8 +13,8 @@ logger = logging.getLogger('url_purger')
 logger.setLevel(logging.INFO)
 if not logger.handlers:
     os.makedirs(LOG_FILE.parent, exist_ok=True)
-    # 10 MB = 10485760 bytes
-    fh = RotatingFileHandler(LOG_FILE, maxBytes=10485760, backupCount=4)
+    # 3 MB = 3145728 bytes
+    fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
     fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(fh)
 logger.setLevel(logging.INFO)

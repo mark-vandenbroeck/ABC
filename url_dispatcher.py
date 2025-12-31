@@ -19,8 +19,8 @@ LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'dispatcher.log'
 logger = logging.getLogger('url_dispatcher')
 logger.setLevel(logging.INFO)
 if not logger.handlers:
-    # 10 MB = 10485760 bytes
-    handler = RotatingFileHandler(LOG_FILE, maxBytes=10485760, backupCount=4)
+    # 3 MB = 3145728 bytes
+    handler = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
     handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(handler)
 
