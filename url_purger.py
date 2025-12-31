@@ -65,6 +65,15 @@ class URLPurger:
             if cursor.rowcount > 0:
                 logger.info(f"Purger: Deleted {cursor.rowcount} 'dns' disabled hosts")
 
+            # 4. Erase document content for parsed URLs without tunes
+            cursor.execute('''
+                UPDATE urls 
+                SET document = 'erased', size_bytes = 0 
+                WHERE status = 'parsed' AND has_abc = 0 AND document != 'erased'
+            ''')
+            if cursor.rowcount > 0:
+                logger.info(f"Purger: Erased document content for {cursor.rowcount} non-ABC parsed URLs")
+
             conn.commit()
         except Exception as e:
             logger.error(f"Purger error: {e}")
