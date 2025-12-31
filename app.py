@@ -177,9 +177,11 @@ def start_dispatcher():
             pass  # Process doesn't exist, continue
     
     try:
+        os.makedirs('logs', exist_ok=True)
+        log_file = open('logs/dispatcher.log', 'a')
         proc = subprocess.Popen(['python', 'url_dispatcher.py'], 
-                              stdout=subprocess.PIPE, 
-                              stderr=subprocess.PIPE)
+                              stdout=log_file, 
+                              stderr=log_file)
         processes['dispatcher'] = proc.pid
         # Write pidfile so external scripts can see/coordinate with this process
         try:
@@ -223,7 +225,11 @@ def start_purger():
             pass
     
     try:
-        proc = subprocess.Popen(['python', 'url_purger.py'])
+        os.makedirs('logs', exist_ok=True)
+        log_file = open('logs/purger.log', 'a')
+        proc = subprocess.Popen(['python', 'url_purger.py'],
+                              stdout=log_file,
+                              stderr=log_file)
         processes['purger'] = proc.pid
         try:
             os.makedirs('run', exist_ok=True)
@@ -268,9 +274,11 @@ def add_fetcher():
             pass
     
     try:
+        os.makedirs('logs', exist_ok=True)
+        log_file = open('logs/fetcher_out.log', 'a')
         proc = subprocess.Popen(['python', 'url_fetcher.py', fetcher_id],
-                              stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE)
+                              stdout=log_file,
+                              stderr=log_file)
         processes['fetchers'][fetcher_id] = proc.pid
         # Write pidfile for fetcher
         try:
@@ -317,7 +325,11 @@ def add_parser():
             pass
     
     try:
-        proc = subprocess.Popen(['python', 'url_parser.py', parser_id])
+        os.makedirs('logs', exist_ok=True)
+        log_file = open('logs/parser_out.log', 'a')
+        proc = subprocess.Popen(['python', 'url_parser.py', parser_id],
+                              stdout=log_file,
+                              stderr=log_file)
         processes['parsers'][parser_id] = proc.pid
         # Write pidfile
         try:
