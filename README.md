@@ -79,12 +79,12 @@ graph TD
 ```mermaid
 erDiagram
     tunebooks ||--o{ tunes : contains
-    urls ||--o{ tunebooks : "is source of"
+    urls ||--o{ tunebooks : "source of"
     tunes ||--o| faiss_mapping : "mapped to"
     
     urls {
-        int id PK
-        string url UNIQUE
+        int id
+        string url
         timestamp created_at
         timestamp downloaded_at
         int size_bytes
@@ -98,7 +98,7 @@ erDiagram
     }
 
     hosts {
-        string host PK
+        string host
         timestamp last_access
         int last_http_status
         int downloads
@@ -108,15 +108,15 @@ erDiagram
     }
 
     tunebooks {
-        int id PK
-        string url UNIQUE
+        int id
+        string url
         string status
         timestamp created_at
     }
 
     tunes {
-        int id PK
-        int tunebook_id FK
+        int id
+        int tunebook_id
         string reference_number
         string title
         string composer
@@ -128,8 +128,8 @@ erDiagram
     }
     
     faiss_mapping {
-        int faiss_id PK
-        int tune_id FK
+        int faiss_id
+        int tune_id
     }
 ```
 
