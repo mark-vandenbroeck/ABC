@@ -47,6 +47,100 @@ pip install -r requirements.txt
 python database.py
 ```
 
+## Data & Process Flow
+
+```mermaid
+graph TD
+    subgraph "External"
+        Web["WWW (ABC Sources)"]
+    end
+
+    subgraph "Crawling & Parsing"
+        D[Dispatcher] <--> F[Fetchers]
+        F --> |HTML/ABC| U[(URLs Table)]
+        D <--> P[Parsers]
+        P --> |ABC Header/Body| T[(Tunes Table)]
+    end
+
+    subgraph "Indexing & Search"
+        D <--> I[Indexers]
+        I --> |Pitch Intervals| T
+        A[Flask app] --> |Background Sync| FAISS[FAISS HNSW Index]
+        A --> |Search Query| FAISS
+        U_UI[Web Interface] <--> A
+    end
+
+    Web -.-> |Download| F
+    T -.-> |Sync| FAISS
+```
+
+## Database Schema
+
+```mermaid
+erDiagram
+    tunebooks ||--o{ tunes : contains
+    urls ||--o{ tunebooks : "is source of"
+    tunes ||--o| faiss_mapping : "mapped to"
+    
+    urls {
+        int id PK
+        string url UNIQUE
+        timestamp created_at
+        timestamp downloaded_at
+        int size_bytes
+        string status
+        string mime_type
+        blob document
+        int http_status
+        int retries
+        timestamp dispatched_at
+        string host
+    }
+
+    hosts {
+        string host PK
+        timestamp last_access
+        int last_http_status
+        int downloads
+        int disabled
+        string disabled_reason
+        timestamp disabled_at
+    }
+
+    tunebooks {
+        int id PK
+        string url UNIQUE
+        string status
+        timestamp created_at
+    }
+
+    tunes {
+        int id PK
+        int tunebook_id FK
+        string reference_number
+        string title
+        string composer
+        string key
+        string rhythm
+        string tune_body
+        string pitches
+        string intervals
+    }
+    
+    faiss_mapping {
+        int faiss_id PK
+        int tune_id FK
+    }
+```
+
+### Belangrijkste Tabellen
+
+- **`urls`**: De centrale tabel voor alle gecrawlde en nog te crawlen links. Bevat de ruwe content (document) en status.
+- **`hosts`**: Houdt per host de `last_access` bij voor rate-limiting en DNS status.
+- **`tunebooks`**: Groepeert tunes die van dezelfde bron-URL komen. De `status` kolom geeft aan of de tunes al geëxtraheerd zijn.
+- **`tunes`**: Bevat de muzikale metadata en de berekende `pitches` en `intervals`.
+- **`faiss_mapping`**: De koppeling tussen de interne ID's van de FAISS index en de `tune_id` in SQLite.
+
 ## Gebruik
 
 1. Start het volledige systeem:
