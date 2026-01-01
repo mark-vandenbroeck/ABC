@@ -1,6 +1,8 @@
 from flask import Flask, render_template, jsonify, request
 import sqlite3
 import os
+import threading
+import time
 import numpy as np
 from database import get_db_connection
 from vector_index import VectorIndex
@@ -249,5 +251,65 @@ def get_similar_tunes(tune_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def sync_faiss_loop():
+    """
+    Background worker to periodically sync new tunes to FAISS index.
+    Checks for tunes that have intervals but are not yet in the index.
+    """
+    print("FAISS Sync Worker started")
+    while True:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Find tunes that have intervals but are NOT in the FAISS index
+            # Limit to 1000 at a time to avoid memory spikes
+            cursor.execute('''
+                SELECT id, intervals 
+                FROM tunes 
+                WHERE intervals IS NOT NULL 
+                AND id NOT IN (SELECT tune_id FROM faiss_mapping)
+                LIMIT 1000
+            ''')
+            
+            rows = cursor.fetchall()
+            conn.close()
+            
+            if rows:
+                print(f"Sync Worker: Found {len(rows)} new tunes to index")
+                tune_ids = []
+                vectors = []
+                
+                for row in rows:
+                    try:
+                        # Parse intervals string back to float list
+                        vals = [float(x) for x in row[1].split(',') if x.strip()]
+                        
+                        # Normalize/Pad/Truncate to 32 dims (VectorIndex.dimension)
+                        vec = np.zeros(32, dtype=np.float32)
+                        for i, val in enumerate(vals[:32]):
+                            vec[i] = val
+                            
+                        tune_ids.append(row[0])
+                        vectors.append(vec)
+                    except ValueError:
+                        continue
+                
+                if tune_ids:
+                    # add_vectors handles the DB mapping insert + FAISS save
+                    v_index.add_vectors(tune_ids, np.array(vectors))
+                    print(f"Sync Worker: Successfully indexed {len(tune_ids)} tunes")
+            
+            # Sleep before next check
+            time.sleep(30)
+            
+        except Exception as e:
+            print(f"Sync Worker error: {e}")
+            time.sleep(30)
+
 if __name__ == '__main__':
+    # Start background sync thread
+    sync_thread = threading.Thread(target=sync_faiss_loop, daemon=True)
+    sync_thread.start()
+    
     app.run(debug=True, host='0.0.0.0', port=5501)
