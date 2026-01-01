@@ -146,15 +146,14 @@ erDiagram
 1. Start het volledige systeem:
 ```bash
 make start
-# of start handmatig de Flask app:
-python app.py
+# Dit start: Dispatcher, Management App (poort 5500) en Search App (poort 5501)
 ```
 
-2. Interface:
-Ga naar `http://localhost:5500` om:
-- Processen te beheren (toevoegen/verwijderen van fetchers/indexers).
-- Statistieken te bekijken (Crawling voortgang, FAISS index grootte).
-- **Melody Search**: Voer een reeks MIDI pitches in (bijv. `60, 62, 64`) om gelijkaardige melodieën te vinden.
+2. Web Interfaces:
+- **Management Dashboard (`http://localhost:5500`)**: Beheer van processen (fetchers, parsers, indexers), bekijk crawler statistieken en configureer filters.
+- **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers. Zoek op titel, toonsoort, ritme of componist en bekijk de muziek direct in de browser.
+    - Bevat nu robuuste rendering van bladmuziek en audio via een lokale fallback van de `ABCJS` bibliotheek.
+    - Verbeterde audio-integratie met aangepaste CSS voor een premium uitstraling.
 
 ## Architectuur & Communicatie
 

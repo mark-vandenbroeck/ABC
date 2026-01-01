@@ -14,10 +14,26 @@ if [ -f run/app.pid ]; then
   fi
 fi
 if [ ! -f run/app.pid ]; then
-  echo "Starting Flask app..."
+  echo "Starting Management Flask app (port 5500)..."
   nohup python app.py &> logs/app.log &
   echo $! > run/app.pid
-  echo "Flask app PID: $(cat run/app.pid)"
+  echo "Management app PID: $(cat run/app.pid)"
+fi
+
+# Start ABC search app (if not running)
+if [ -f run/abc_app.pid ]; then
+  if kill -0 "$(cat run/abc_app.pid)" 2>/dev/null; then
+    echo "ABC search app already running (pid $(cat run/abc_app.pid))"
+  else
+    echo "Stale PID file for ABC search app, removing"
+    rm -f run/abc_app.pid
+  fi
+fi
+if [ ! -f run/abc_app.pid ]; then
+  echo "Starting ABC search app (port 5501)..."
+  nohup python abc_app.py &> logs/abc_app.log &
+  echo $! > run/abc_app.pid
+  echo "ABC search app PID: $(cat run/abc_app.pid)"
 fi
 
 # Start dispatcher (if not running)

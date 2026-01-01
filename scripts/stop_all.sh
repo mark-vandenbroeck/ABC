@@ -19,6 +19,7 @@ done
 # Fallback: kill by process name
 pkill -f url_dispatcher.py 2>/dev/null || true
 pkill -f "python app.py" 2>/dev/null || true
+pkill -f "python abc_app.py" 2>/dev/null || true
 pkill -f url_fetcher.py 2>/dev/null || true
 pkill -f fetcher.py 2>/dev/null || true
 
