@@ -151,9 +151,31 @@ make start
 
 2. Web Interfaces:
 - **Management Dashboard (`http://localhost:5500`)**: Beheer van processen (fetchers, parsers, indexers), bekijk crawler statistieken en configureer filters.
-- **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers. Zoek op titel, toonsoort, ritme of componist en bekijk de muziek direct in de browser.
-    - Bevat nu robuuste rendering van bladmuziek en audio via een lokale fallback van de `ABCJS` bibliotheek.
-    - Verbeterde audio-integratie met aangepaste CSS voor een premium uitstraling.
+    - **Nieuw**: Process Control pagina is herontworpen met een overzichtelijke 2-koloms layout.
+- **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers.
+    - **Nieuw**: Zoek op Tune ID (bijv. `77277`).
+    - **Nieuw**: "Vind gelijkaardige melodieën" knop maakt gebruik van FAISS (snelle voorselectie) en DTW (precieze ranking) om muzikale variaties te vinden.
+    - Bevat robuuste rendering van bladmuziek en audio via een lokale fallback van de `ABCJS` bibliotheek.
+
+## Gebruikershandleiding: ABC Tune Explorer
+
+### 1. Zoeken
+- **Algemeen**: Typ een titel, deel van een titel, of een specifiek **Tune ID** in het algemene zoekveld.
+- **Filters**: Gebruik de specifieke velden voor 'Titel', 'Toonsoort' (bijv. G, Am), 'Ritme' (bijv. Reel, Jig), of 'Componist'.
+- **Resultaten**: Klik op een resultaat om de details te bekijken.
+
+### 2. Melodie Details & Gelijkenissen
+- **Bekijk Melodie**: In het detailvenster zie je de bladmuziek en kun je de melodie afspelen.
+- **Vind Gelijkaardige Melodieën**:
+    - Klik op de knop **"Vind gelijkaardige melodieën"** onder de bladmuziek.
+    - Het systeem zoekt naar tunes met vergelijkbare intervallen.
+    - **Score**: De getoonde score is de 'afstand' tot het origineel. Een score van **0** is een exacte match; hoe lager, hoe beter.
+    - Klik op een resultaat om die variatie direct te openen.
+
+### 3. Systeembeheer (Process Control)
+- **Start/Stop**: Start of stop individuele componenten (Dispatcher, Purger) of voeg Fetchers/Parsers/Indexers toe.
+- **Stop All**: Gebruik de rode "Stop All Processes" knop onderaan om het hele systeem in één keer stil te leggen.
+- **Statistieken**: De 'Statistics' tab toont nu ook de status van de zoekindex ("Global FAISS Index") en het aantal verwerkte tunes.
 
 ## Architectuur & Communicatie
 

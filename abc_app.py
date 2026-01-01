@@ -1,9 +1,13 @@
 from flask import Flask, render_template, jsonify, request
 import sqlite3
 import os
+import numpy as np
 from database import get_db_connection
+from vector_index import VectorIndex
+from dtaidistance import dtw
 
 app = Flask(__name__)
+v_index = VectorIndex()
 
 @app.route('/')
 def index():
@@ -33,8 +37,15 @@ def search_tunes():
         params = []
         
         if query:
-            sql += ' AND (t.title LIKE ? OR t.composer LIKE ? OR t.notes LIKE ?)'
-            params += [f'%{query}%', f'%{query}%', f'%{query}%']
+            search_conditions = ['t.title LIKE ?', 't.composer LIKE ?', 't.notes LIKE ?']
+            search_params = [f'%{query}%', f'%{query}%', f'%{query}%']
+            
+            if query.isdigit():
+                search_conditions.append('t.id = ?')
+                search_params.append(query)
+                
+            sql += ' AND (' + ' OR '.join(search_conditions) + ')'
+            params += search_params
             
         if title:
             sql += ' AND t.title LIKE ?'
@@ -142,6 +153,99 @@ def get_tune(tune_id):
                 'notes': row[10]
             })
         return jsonify({'error': 'Tune not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def rerank_with_dtw(query_intervals, candidates, database_intervals):
+    """
+    Rerank candidates using Dynamic Time Warping
+    """
+    scored = []
+    for tune_id in candidates:
+        if tune_id not in database_intervals:
+            continue
+        candidate_intervals = database_intervals[tune_id]
+        
+        # dtaidistance requires numpy arrays
+        try:
+            d = dtw.distance(
+                np.array(query_intervals, dtype=np.float64),
+                np.array(candidate_intervals, dtype=np.float64),
+                window=5
+            )
+            scored.append((tune_id, d))
+        except Exception as e:
+            print(f"DTW error for tune {tune_id}: {e}")
+            continue
+            
+    return sorted(scored, key=lambda x: x[1])
+
+@app.route('/api/tune/<int:tune_id>/similar')
+def get_similar_tunes(tune_id):
+    """Find similar tunes using FAISS preselection and DTW reranking"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 1. Get query tune intervals
+        cursor.execute('SELECT intervals FROM tunes WHERE id = ?', (tune_id,))
+        row = cursor.fetchone()
+        if not row or not row[0]:
+            conn.close()
+            return jsonify({'error': 'Query tune has no intervals indexed'}), 400
+        
+        query_intervals = [float(x) for x in row[0].split(',') if x.strip()]
+        
+        # 2. FAISS Preselection (top 100)
+        # Convert to fixed length vector (the index uses 32 dimensions)
+        q_vec = np.zeros(32, dtype=np.float32)
+        for i, val in enumerate(query_intervals[:32]):
+            q_vec[i] = val
+        
+        faiss_results = v_index.search(q_vec, k=100)
+        candidate_ids = [r['tune_id'] for r in faiss_results if r['tune_id'] != tune_id]
+        
+        if not candidate_ids:
+            conn.close()
+            return jsonify({'results': []})
+            
+        # 3. Fetch intervals for candidates
+        placeholders = ', '.join(['?'] * len(candidate_ids))
+        cursor.execute(f'''
+            SELECT id, title, key, rhythm, composer, intervals 
+            FROM tunes 
+            WHERE id IN ({placeholders})
+        ''', candidate_ids)
+        
+        candidate_rows = cursor.fetchall()
+        db_intervals = {}
+        tune_meta = {}
+        
+        for r in candidate_rows:
+            tid = r[0]
+            if r[5]:
+                db_intervals[tid] = [float(x) for x in r[5].split(',') if x.strip()]
+            tune_meta[tid] = {
+                'id': tid,
+                'title': r[1],
+                'key': r[2],
+                'rhythm': r[3],
+                'composer': r[4]
+            }
+            
+        # 4. Rerank with DTW
+        reranked = rerank_with_dtw(query_intervals, candidate_ids, db_intervals)
+        
+        # 5. Take top 10
+        final_results = []
+        for tid, dist in reranked[:10]:
+            meta = tune_meta[tid]
+            meta['similarity_score'] = round(dist, 4)
+            final_results.append(meta)
+            
+        conn.close()
+        return jsonify({'results': final_results})
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

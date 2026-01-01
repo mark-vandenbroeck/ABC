@@ -86,6 +86,12 @@ class Tune:
         
         self.tune_body = '\n'.join(body_lines)
         
+        self.tune_body = '\n'.join(body_lines)
+        
+        # Parse the body lines into individual musical elements for internal representation
+        body_text = ' '.join(body_lines)
+        self._parse_body(body_text)
+
         # Calculate pitches using music21 if available
         if MUSIC21_AVAILABLE:
             try:
@@ -93,9 +99,9 @@ class Tune:
             except Exception as e:
                 logger.warning(f"Music21 parsing failed for tune: {e}")
         
-        # Parse the body lines into individual musical elements for internal representation
-        body_text = ' '.join(body_lines)
-        self._parse_body(body_text)
+        # Fallback: extract pitches from elements if music21 failed, returned empty, or wasn't available
+        if not self.pitches:
+            self.pitches = self._extract_pitches_from_elements()
 
     def abc_to_pitches(self, abc_string):
         """
@@ -107,10 +113,71 @@ class Tune:
             for n in score.recurse().notes:
                 if isinstance(n, m21_note.Note):
                     pitches.append(n.pitch.midi)
-            return pitches
+            
+            if pitches:
+                return pitches
         except Exception:
-            # Silently fail for pitches calculation if music21 fails on complex/invalid ABC
-            return []
+            pass
+        
+        # Fallback: extract pitches from elements if music21 failed or returned empty
+        # This is more robust for tunes with mixed documentation
+        return self._extract_pitches_from_elements()
+
+    def _extract_pitches_from_elements(self):
+        """Fallback method to extract MIDI pitches from parsed elements"""
+        pitches = []
+        # Basic mapping for note names to MIDI relative to C4 (60)
+        # This is a simplification; a full ABC parser is complex.
+        # But we already have logic in _extract_pitch to get base note.
+        # We need to handle octaves and accidentals better if we want accurate intervals.
+        # For similarity search, we need relative intervals, so absolute pitch matters less
+        # as long as intervals are correct. However, accurate MIDI is best.
+        
+        # Since implementing a full ABC->MIDI parser is complex, we will try to use
+        # the simple relative pitch values based on C=0, D=2, etc?
+        # No, let's stick to what we need: just non-empty logic to allow similarity potential.
+        
+        # Better fallback: Use the regex-based elements we already parsed
+        for el in self.elements:
+            if el['type'] == 'note':
+                # Parse the note string to get approximate MIDI
+                # This is a rough approximation but better than nothing
+                val = el['value']
+                try:
+                    midi = self._abc_note_to_midi(val)
+                    pitches.append(midi)
+                except:
+                    pass
+        return pitches
+
+    def _abc_note_to_midi(self, abc_note):
+        # Handle accidentals
+        acc_map = {'^': 1, '_': -1, '=': 0}
+        acc = 0
+        if abc_note.startswith('^'): acc = 1; abc_note = abc_note[1:]
+        elif abc_note.startswith('_'): acc = -1; abc_note = abc_note[1:]
+        elif abc_note.startswith('='): acc = 0; abc_note = abc_note[1:]
+        
+        # Handle octaves
+        octave_adjust = 0
+        while abc_note.endswith("'"): 
+            octave_adjust += 12
+            abc_note = abc_note[:-1]
+        while abc_note.endswith(","): 
+            octave_adjust -= 12
+            abc_note = abc_note[:-1]
+            
+        # Base note (C=60 is middle C, but in ABC 'C' is usually C4 or C5 depending on K field which we ignore here for fallback)
+        # ABC Standard: C is middle C ?? No.
+        # C, = C3, C = C4, c = C5, c' = C6
+        
+        base_map = {
+            'C': 60, 'D': 62, 'E': 64, 'F': 65, 'G': 67, 'A': 69, 'B': 71,
+            'c': 72, 'd': 74, 'e': 76, 'f': 77, 'g': 79, 'a': 81, 'b': 83
+        }
+        
+        base_val = base_map.get(abc_note, 60) # Default to C if weird
+        return base_val + acc + octave_adjust
 
     def _parse_body(self, body_text):
         """

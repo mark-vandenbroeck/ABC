@@ -520,6 +520,27 @@
                         Download ABC
                     </button>
                 </div>
+
+                <div style="margin-top: 15px;">
+                    <button class="btn-secondary"
+                        style="width: 100%; justify-content: center; border-color: var(--primary); color: var(--primary);"
+                        id="find-similar-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        Vind gelijkaardige melodieën
+                    </button>
+                </div>
+
+                <div id="similar-tunes-section" style="margin-top: 30px; display: none;">
+                    <h4 style="color: var(--accent); margin-bottom:15px; font-size: 0.8rem; text-transform: uppercase;">
+                        Gelijkaardige Melodieën (gebaseerd op melodie)</h4>
+                    <div id="similar-tunes-list" style="display: grid; gap: 10px;">
+                        <!-- Similar results will appear here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -622,6 +643,13 @@
                 document.body.style.overflow = 'hidden';
 
                 activeTuneAbc = tune.abc;
+
+                // Set up similarity button
+                const similarBtn = document.getElementById('find-similar-btn');
+                similarBtn.onclick = () => findSimilar(id);
+                document.getElementById('similar-tunes-section').style.display = 'none';
+                document.getElementById('similar-tunes-list').innerHTML = '';
+
                 const visualObj = ABCJS.renderAbc("abc-view", tune.abc, {
                     responsive: 'resize',
                     paddingbottom: 30,
@@ -666,6 +694,69 @@
                 });
             } else {
                 audioDiv.innerHTML = "<p style='color: var(--text-dim); font-size: 0.9rem;'>Audio wordt niet ondersteund in deze browser.</p>";
+            }
+        }
+
+        async function findSimilar(id) {
+            const btn = document.getElementById('find-similar-btn');
+            const section = document.getElementById('similar-tunes-section');
+            const list = document.getElementById('similar-tunes-list');
+
+            btn.disabled = true;
+            btn.textContent = "Zoeken naar gelijkaardige melodieën...";
+
+            try {
+                const res = await fetch(`/api/tune/${id}/similar`);
+                const data = await res.json();
+
+                btn.disabled = false;
+                btn.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    Vind gelijkaardige melodieën
+                `;
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                section.style.display = 'block';
+                list.innerHTML = '';
+
+                if (data.results.length === 0) {
+                    list.innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Geen gelijkaardige melodieën gevonden.</p>';
+                } else {
+                    data.results.forEach(tune => {
+                        const item = document.createElement('div');
+                        item.style.cssText = 'background: rgba(255,255,255,0.05); padding: 12px 15px; border-radius: 10px; border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: all 0.2s;';
+                        item.onmouseover = () => item.style.borderColor = 'var(--primary)';
+                        item.onmouseout = () => item.style.borderColor = 'var(--border)';
+                        item.onclick = () => showTune(tune.id);
+
+                        item.innerHTML = `
+                            <div>
+                                <div style="font-weight: 600; font-size: 1rem;">${tune.title}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-dim);">${tune.key} | ${tune.rhythm}</div>
+                            </div>
+                            <div style="font-size: 0.8rem; background: var(--glass); padding: 2px 8px; border-radius: 5px; color: var(--accent);">
+                                Score: ${tune.similarity_score}
+                            </div>
+                        `;
+                        list.appendChild(item);
+                    });
+                }
+
+                // Scroll to similar results
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            } catch (err) {
+                console.error(err);
+                btn.disabled = false;
+                btn.textContent = "Vind gelijkaardige melodieën";
+                alert("Kon gelijkaardige melodieën niet laden.");
             }
         }
 

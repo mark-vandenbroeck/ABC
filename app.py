@@ -973,6 +973,12 @@ def get_stats():
     cursor.execute("SELECT COUNT(*) FROM tunes WHERE intervals IS NULL")
     stats['total_pending_index_tunes'] = cursor.fetchone()[0]
 
+    try:
+        cursor.execute("SELECT COUNT(*) FROM faiss_mapping")
+        stats['faiss_index_size'] = cursor.fetchone()[0]
+    except sqlite3.OperationalError:
+        stats['faiss_index_size'] = 0
+
     conn.close()
     
     return jsonify(stats)

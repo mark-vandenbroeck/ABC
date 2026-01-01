@@ -303,6 +303,27 @@
                 min-width: 140px;
             }
         }
+
+        /* Process Control Grid */
+        .process-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .process-card {
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            padding: 20px;
+            background: #fff;
+        }
+
+        @media (max-width: 800px) {
+            .process-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 
@@ -327,41 +348,61 @@
         <!-- Process Control Section -->
         <div id="process-control" class="section tab-content active">
             <h2>Process Control</h2>
-            <div>
-                <h3>Dispatcher
-                    <span id="dispatcher-status" class="status stopped">Stopped</span>
-                </h3>
-                <button id="start-dispatcher-btn" class="button success" onclick="startDispatcher()">Start
-                    Dispatcher</button>
-                <button id="stop-dispatcher-btn" class="button danger" onclick="stopDispatcher()"
-                    style="display:none;">Stop Dispatcher</button>
+
+            <div class="process-grid">
+                <!-- Dispatcher Card -->
+                <div class="process-card">
+                    <h3>Dispatcher
+                        <span id="dispatcher-status" class="status stopped">Stopped</span>
+                    </h3>
+                    <div style="margin-top: 15px;">
+                        <button id="start-dispatcher-btn" class="button success" onclick="startDispatcher()">Start
+                            Dispatcher</button>
+                        <button id="stop-dispatcher-btn" class="button danger" onclick="stopDispatcher()"
+                            style="display:none;">Stop Dispatcher</button>
+                    </div>
+                </div>
+
+                <!-- Purger Card -->
+                <div class="process-card">
+                    <h3>URL Purger
+                        <span id="purger-status" class="status stopped">Stopped</span>
+                    </h3>
+                    <div style="margin-top: 15px;">
+                        <button id="start-purger-btn" class="button success" onclick="startPurger()">Start
+                            Purger</button>
+                        <button id="stop-purger-btn" class="button danger" onclick="stopPurger()"
+                            style="display:none;">Stop
+                            Purger</button>
+                    </div>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">Cleans up database every 60 seconds
+                        (Refused
+                        extensions & DNS errors).</p>
+                </div>
+
+                <!-- Fetchers Card -->
+                <div class="process-card">
+                    <h3>Fetchers</h3>
+                    <div id="fetchers-list" style="margin-top: 15px; min-height: 20px;"></div>
+                    <button class="button success" onclick="addFetcher()" style="margin-top: 10px;">Add Fetcher</button>
+                </div>
+
+                <!-- Parsers Card -->
+                <div class="process-card">
+                    <h3>Parsers</h3>
+                    <div id="parsers-list" style="margin-top: 15px; min-height: 20px;"></div>
+                    <button class="button success" onclick="addParser()" style="margin-top: 10px;">Add Parser</button>
+                </div>
+
+                <!-- Indexers Card -->
+                <div class="process-card">
+                    <h3>Indexers</h3>
+                    <div id="indexers-list" style="margin-top: 15px; min-height: 20px;"></div>
+                    <button class="button success" onclick="addIndexer()" style="margin-top: 10px;">Add Indexer</button>
+                </div>
             </div>
-            <div style="margin-top: 20px;">
-                <h3>URL Purger
-                    <span id="purger-status" class="status stopped">Stopped</span>
-                </h3>
-                <button id="start-purger-btn" class="button success" onclick="startPurger()">Start Purger</button>
-                <button id="stop-purger-btn" class="button danger" onclick="stopPurger()" style="display:none;">Stop
-                    Purger</button>
-                <p style="font-size: 0.9em; color: #666; margin-top: 5px;">Cleans up database every 60 seconds (Refused
-                    extensions & DNS errors).</p>
-            </div>
-            <div style="margin-top: 20px;">
-                <h3>Fetchers</h3>
-                <div id="fetchers-list"></div>
-                <button class="button success" onclick="addFetcher()">Add Fetcher</button>
-            </div>
-            <div style="margin-top: 20px;">
-                <h3>Parsers</h3>
-                <div id="parsers-list"></div>
-                <button class="button success" onclick="addParser()">Add Parser</button>
-            </div>
-            <div style="margin-top: 20px;">
-                <h3>Indexers</h3>
-                <div id="indexers-list"></div>
-                <button class="button success" onclick="addIndexer()">Add Indexer</button>
-            </div>
-            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #ddd;">
+
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #eee;">
                 <button class="button danger" onclick="stopAllProcesses()"
                     style="font-size: 1.1em; padding: 12px 24px;">
                     🛑 Stop All Processes
@@ -1278,6 +1319,20 @@
                     <div class="stat-card">
                         <div class="stat-label">Total Size</div>
                         <div class="stat-value">${formatBytes(data.total_size_bytes || 0)}</div>
+                    </div>
+                    
+                    <!-- Indexing Stats -->
+                    <div class="stat-card" style="border-top: 2px solid #007bff;">
+                        <div class="stat-label">Global FAISS Index</div>
+                        <div class="stat-value">${formatNumber(data.faiss_index_size || 0)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Indexed Tunebooks</div>
+                        <div class="stat-value">${formatNumber(data.total_indexed_tunebooks || 0)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Pending Tunes</div>
+                        <div class="stat-value">${formatNumber(data.total_pending_index_tunes || 0)}</div>
                     </div>
                 `;
             } catch (error) {
