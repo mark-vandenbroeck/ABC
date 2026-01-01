@@ -159,23 +159,58 @@ make start
 
 ## Gebruikershandleiding: ABC Tune Explorer
 
-### 1. Zoeken
-- **Algemeen**: Typ een titel, deel van een titel, of een specifiek **Tune ID** in het algemene zoekveld.
-- **Filters**: Gebruik de specifieke velden voor 'Titel', 'Toonsoort' (bijv. G, Am), 'Ritme' (bijv. Reel, Jig), of 'Componist'.
-- **Resultaten**: Klik op een resultaat om de details te bekijken.
+### 1. Zoeken & Navigeren
 
-### 2. Melodie Details & Gelijkenissen
-- **Bekijk Melodie**: In het detailvenster zie je de bladmuziek en kun je de melodie afspelen.
-- **Vind Gelijkaardige Melodieën**:
-    - Klik op de knop **"Vind gelijkaardige melodieën"** onder de bladmuziek.
-    - Het systeem zoekt naar tunes met vergelijkbare intervallen.
-    - **Score**: De getoonde score is de 'afstand' tot het origineel. Een score van **0** is een exacte match; hoe lager, hoe beter.
-    - Klik op een resultaat om die variatie direct te openen.
+De interface is ontworpen om intuïtief toegang te geven tot duizenden traditionele melodieën.
 
-### 3. Systeembeheer (Process Control)
-- **Start/Stop**: Start of stop individuele componenten (Dispatcher, Purger) of voeg Fetchers/Parsers/Indexers toe.
-- **Stop All**: Gebruik de rode "Stop All Processes" knop onderaan om het hele systeem in één keer stil te leggen.
-- **Statistieken**: De 'Statistics' tab toont nu ook de status van de zoekindex ("Global FAISS Index") en het aantal verwerkte tunes.
+#### Zoekvelden
+- **Algemeen Zoekveld**: Dit is een krachtige alleskunner.
+    - *Titel*: Typ (een deel van) de titel, bijv. "Glory".
+    - *Tune ID*: Weet je het ID nummer? Typ het direct in (bijv. `77277`) om exact die tune te openen.
+    - *Wildcards*: Zoeken is standaard "bevat", dus je hoeft geen `*` te gebruiken.
+- **Specifieke Filters**:
+    - *Key (Toonsoort)*: Filter op toonsoort. Gebruik standaard notatie zoals `G` (G majeur), `Am` (A mineur), `Dmix` (D Mixolydisch).
+    - *Rhythm (Ritme)*: Filter op type dans of metrum, zoals `Reel`, `Jig`, `Hornpipe`, `Waltz`.
+    - *Composer (Componist)*: Zoek naar tunes van of toegeschreven aan een specifieke persoon.
+
+#### Resultaten
+De resultaten verschijnen direct onder de zoekbalk in een responsive grid. Elke kaart toont de titel en de belangrijkste metadata. Klik op **"Bekijk melodie"** op een kaart om het detailvenster te openen.
+
+### 2. Melodie Detailvenster
+
+Dit is het hart van de applicatie, waar je de muziek kunt lezen, horen en analyseren.
+
+#### Muziekweergave & Audio
+- **Partituur**: De ABC code wordt automatisch omgezet naar leesbare bladmuziek.
+- **Audio Speler**:
+    - Gebruik de **Play/Pause** knop om de melodie te beluisteren (gesynthetiseerde piano).
+    - **Progres Bar**: Sleep om naar een specifiek punt te springen.
+    - **Loop Functie**: Schakel herhaling in om een lastige passage te oefenen.
+    - **Tempo**: Pas de afspeelsnelheid aan zonder de toonhoogte te veranderen.
+- **Broncode**: Bekijk de ruwe ABC tekst ("ABC Broncode") om te zien hoe de muziek genoteerd is.
+- **Download**: Klik op "Download ABC" om het bestand lokaal op te slaan.
+
+#### "Vind gelijkaardige melodieën"
+Deze geavanceerde functie helpt je varianten en gerelateerde tunes te ontdekken.
+1.  Klik op de knop **"Vind gelijkaardige melodieën"** onderaan de details.
+2.  Het systeem analyseert de *intervallen* van de huidige melodie.
+3.  Er verschijnt een lijst met tunes die muzikaal sterk lijken op de huidige.
+    *   **Score Verklaring**: De score (bijv. `3.4` of `12.1`) is de "afstand" tussen de melodieën.
+        *   **0.0**: Exacte match (dezelfde notenvolgorde).
+        *   **< 10.0**: Zeer waarschijnlijk een nauwe variant of dezelfde tune in een andere setting.
+        *   **> 20.0**: Melodieën delen karakteristieken maar zijn duidelijk anders.
+
+### 3. Systeembeheer (Management Dashboard)
+
+Bereikbaar via `http://localhost:5500`. Dit paneel is voor beheerders en power-users.
+
+- **Process Control**:
+    - **Dispatcher**: Het brein dat taken uitdeelt. Moet altijd aan staan ("Running").
+    - **Purger**: Ruimt periodiek de database op (verwijdert ongeldige/geblokkeerde URL's).
+    - **Fetchers/Parsers/Indexers**: Schaalbare 'workers'. Voeg er meer toe ("Add Fetcher") om sneller te crawlen, of minder om systeembronnen te sparen.
+    - **Stop All Processes**: De rode noodknop onderaan stopt het hele systeem veilig.
+- **Statistics**: Real-time grafieken en tellers over de voortgang van de crawler en de omvang van de index.
+- **Hosts**: Beheer welke websites (domeinen) benaderd mogen worden. Je kunt hier specifieke hosts blokkeren of deblokkeren.
 
 ## Architectuur & Communicatie
 
