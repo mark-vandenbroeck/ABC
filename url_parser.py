@@ -139,12 +139,30 @@ class URLParser:
                     urls_batch = response['urls']
                     logger.info(f"Parser {self.parser_id} received batch of {len(urls_batch)} URLs")
                     
+                    processed_base_urls = set()
+                    
                     for url_info in urls_batch:
                         url_id = url_info['id']
                         url = url_info['url']
                         
+                        # Optimization: Skip if we already processed this base URL in this batch
+                        base_url = url.split('#')[0]
+                        if base_url in processed_base_urls:
+                            logger.info(f"Skipping redundant fragment processing for {url}")
+                            # Report success but don't re-parse
+                            report = {
+                                'action': 'submit_parsed_result',
+                                'url_id': url_id,
+                                'has_abc': True # Assume it has ABC if we processed base URL successfully
+                            }
+                            sock.sendall((json.dumps(report) + '\n').encode('utf-8'))
+                            f.readline()
+                            continue
+                        
                         # 2. Process the URL
                         proc_success, has_abc = self.process_url(url_id, url)
+                        if proc_success:
+                            processed_base_urls.add(base_url)
                         
                         # 3. Report back to dispatcher over the same socket
                         report = {

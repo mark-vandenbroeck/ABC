@@ -448,7 +448,7 @@ class URLDispatcher:
                     # Expect submit_parsed_result from parser
                     # The parser sends a result for EACH url in the batch sequentially over the same socket
                     # We loop until we receive results for all or socket closes
-                    client_socket.settimeout(10.0) 
+                    client_socket.settimeout(60.0) 
                     processed_count = 0
                     while processed_count < len(urls):
                         try:

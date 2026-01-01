@@ -36,6 +36,10 @@ class Tune:
         'I': 'instruction'
     }
 
+    MAX_TUNE_CHARS = 10000 # Skip extremely large tunes (e.g. symphonies)
+    MAX_TUNE_LINES = 300
+    MAX_VOICES = 4 # Skip complex multi-voice orchestral scores
+
     def __init__(self, raw_data):
         self.raw_data = raw_data
         self.metadata = {}
@@ -43,59 +47,96 @@ class Tune:
         self.title = "Untitled"
         self.tune_body = ""
         self.pitches = []
+        
+        if len(raw_data) > self.MAX_TUNE_CHARS:
+            logger.warning(f"Skipping tune: raw data too large ({len(raw_data)} chars)")
+            return
+            
+        # Quick complexity check: count voices
+        voice_count = len(re.findall(r'^V:\s*', raw_data, re.MULTILINE))
+        if voice_count > self.MAX_VOICES:
+            logger.warning(f"Skipping tune: too many voices ({voice_count})")
+            return
+
         self._parse()
 
     def _parse(self):
         lines = self.raw_data.strip().split('\n')
         header_pattern = re.compile(r'^([A-Z]):\s*(.*)$')
         
-        in_header = True
         body_lines = []
         
         for line in lines:
-            line = line.strip()
-            if not line:
+            line_stripped = line.strip()
+            if not line_stripped:
                 continue
                 
-            if in_header:
-                match = header_pattern.match(line)
-                if match:
-                    key, value = match.groups()
-                    # Strip trailing comments from header values
-                    value = re.sub(r'%.*', '', value).strip()
-                    
-                    if key in self.METADATA_MAPPING:
-                        db_key = self.METADATA_MAPPING[key]
-                        self.metadata[db_key] = value
-                    
-                    if key == 'T' and self.title == "Untitled":
-                        self.title = value
-                        
-                    if key == 'K':
-                        # Key is usually the last header line
-                        in_header = False
-                elif line.startswith('%'):
-                    # Comments are allowed in headers, don't end header yet
-                    continue
-                else:
-                    # Once we hit a line that isn't a header field or a comment, the tune body starts
-                    in_header = False
-                    body_lines.append(line)
-            else:
-                body_lines.append(line)
+            # Treat ANY line starting with [A-Z]: as a header
+            match = header_pattern.match(line_stripped)
+            if match:
+                key, value = match.groups()
+                # Strip trailing comments from header values
+                value = re.sub(r'%.*', '', value).strip()
+                
+                if key in self.METADATA_MAPPING:
+                    db_key = self.METADATA_MAPPING[key]
+                    # Don't overwrite unless it's Title or we really want to
+                    # titles can have multiple T: lines
+                    if db_key == 'title':
+                        if self.title == "Untitled":
+                            self.title = value
+                        else:
+                            # Append to title? Some tunes have multiple T lines.
+                            pass
+                    self.metadata[db_key] = value
+                continue
+            
+            if line_stripped.startswith('%'):
+                continue
+                
+            # If it's not a header or comment, it might be body
+            # We must be careful! Don't take "hornpipe" or HTML junk.
+            # A music line usually has a high density of ABC chars and NO common English words.
+            junk_words = ['tune', 'next', 'previous', 'sheet', 'music', 'rendered', 'last', 'updated', 'october', 'henrik', 'norbeck', 'cookies', 'adsense', 'adverts', 'consent', 'using', 'site']
+            line_lower = line_stripped.lower()
+            if any(word in line_lower for word in junk_words):
+                continue
+
+            abc_chars = len(re.findall(r'[a-gA-Gz0-9/|\[\]()_^=,\'~]', line_stripped))
+            total_chars = len(line_stripped.replace(" ", ""))
+            
+            # Heuristic: line must be at least 80% ABC characters 
+            # OR contain a bar line | and have no junk words
+            if (total_chars > 0 and abc_chars / total_chars > 0.8) or ('|' in line_stripped and total_chars > 2):
+                body_lines.append(line_stripped)
         
         self.tune_body = '\n'.join(body_lines)
         
-        self.tune_body = '\n'.join(body_lines)
-        
-        # Parse the body lines into individual musical elements for internal representation
+        # Parse the body lines into individual musical elements
         body_text = ' '.join(body_lines)
         self._parse_body(body_text)
 
         # Calculate pitches using music21 if available
+        # music21 is much more robust for complex ABC
         if MUSIC21_AVAILABLE:
             try:
-                self.pitches = self.abc_to_pitches(self.raw_data)
+                # We need to reconstruct a clean ABC for music21
+                clean_abc = []
+                # Add headers back
+                # Important: Title and Key are minimal requirements for music21
+                if 'reference_number' in self.metadata: clean_abc.append(f"X:{self.metadata['reference_number']}")
+                else: clean_abc.append("X:1")
+                
+                for db_key, val in self.metadata.items():
+                    # Find back the ABC key
+                    abc_key = [k for k, v in self.METADATA_MAPPING.items() if v == db_key]
+                    if abc_key and abc_key[0] != 'X':
+                        clean_abc.append(f"{abc_key[0]}:{val}")
+                
+                clean_abc.append(f"K:{self.metadata.get('key', 'D')}") # Default to D if missing
+                clean_abc.extend(body_lines)
+                
+                self.pitches = self.abc_to_pitches('\n'.join(clean_abc))
             except Exception as e:
                 logger.warning(f"Music21 parsing failed for tune: {e}")
         
@@ -116,7 +157,8 @@ class Tune:
             
             if pitches:
                 return pitches
-        except Exception:
+        except Exception as e:
+            logger.debug(f"Music21 internal error: {e}")
             pass
         
         # Fallback: extract pitches from elements if music21 failed or returned empty
@@ -189,7 +231,9 @@ class Tune:
         
         # Token pattern for ABC notation
         token_pattern = r'''
-            \[[\w\s,]+\]           # Chords [CEG]
+            "[^"]+"                # Quoted strings (chord symbols, etc.)
+            |[A-Z]:\s*[^ \n|]*      # Inline headers (K:, P:, L:, etc.)
+            |\[[\w\s,]+\]           # Chords [CEG]
             |[_^=]?[a-gA-G]        # Note with optional accidental
             |z                     # Rest
             |[0-9]+(?:/[0-9]*)?    # Duration (2, /2, 3/2, etc.)
@@ -212,7 +256,10 @@ class Tune:
         i = 0
         while i < len(tokens):
             token = tokens[i]
-            if token in ['|', '|:', ':|', '::', '[']:
+            if token.startswith('"') or (len(token) > 1 and token[1] == ':'):
+                # Skip chord symbols and inline headers (like K: P: L:)
+                pass
+            elif token in ['|', '|:', ':|', '::', '[']:
                 self.elements.append({'type': 'bar', 'value': token})
             elif token.startswith('[') and token.endswith(']'):
                 if re.match(r'^\[\d', token):
