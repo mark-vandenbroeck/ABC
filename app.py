@@ -866,11 +866,43 @@ def delete_mime_type(mime_id):
 
 @app.route('/api/hosts', methods=['GET'])
 def get_hosts():
-    """Get hosts table contents"""
+    """Get hosts table contents with optional filters"""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute('SELECT host, last_access, last_http_status, downloads, disabled, disabled_reason, disabled_at FROM hosts ORDER BY host')
+    host_filter = request.args.get('host_filter', '').strip()
+    status = request.args.get('status', '').strip()
+    reason = request.args.get('reason', '').strip()
+
+    query = 'SELECT host, last_access, last_http_status, downloads, disabled, disabled_reason, disabled_at FROM hosts WHERE 1=1'
+    params = []
+
+    if host_filter:
+        pattern = host_filter.replace('*', '%')
+        if '%' not in pattern and '_' not in pattern:
+            pattern = f'%{pattern}%'
+        query += ' AND host LIKE ?'
+        params.append(pattern)
+
+    if status:
+        # Exact match for status, but handle if user types partial
+        try:
+            status_int = int(status)
+            query += ' AND last_http_status = ?'
+            params.append(status_int)
+        except ValueError:
+            pass # Ignore invalid status
+
+    if reason:
+        pattern = reason.replace('*', '%')
+        if '%' not in pattern and '_' not in pattern:
+            pattern = f'%{pattern}%'
+        query += ' AND disabled_reason LIKE ?'
+        params.append(pattern)
+
+    query += ' ORDER BY host'
+    
+    cursor.execute(query, params)
     rows = cursor.fetchall()
     conn.close()
 

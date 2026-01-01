@@ -1,0 +1,84 @@
+{
+   "results" : [
+      {
+         "composer" : null,
+         "id" : 67703,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.3616,
+         "title" : "Harvest Home"
+      },
+      {
+         "composer" : null,
+         "id" : 54078,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.7676,
+         "title" : "Happy One-Step, The"
+      },
+      {
+         "composer" : null,
+         "id" : 68386,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.7676,
+         "title" : "Happy One-Step, The"
+      },
+      {
+         "composer" : null,
+         "id" : 67637,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.853,
+         "title" : "College Hornpipe, The"
+      },
+      {
+         "composer" : "traditionell",
+         "id" : 57560,
+         "key" : "C",
+         "rhythm" : "Schleuniger",
+         "similarity_score" : 0.8588,
+         "title" : "Schleiniger Tanz, in C nr.3"
+      },
+      {
+         "composer" : null,
+         "id" : 69829,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.8622,
+         "title" : "Job of Journeywork, The"
+      },
+      {
+         "composer" : null,
+         "id" : 69849,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.8622,
+         "title" : "Job of Journeywork, The"
+      },
+      {
+         "composer" : null,
+         "id" : 66308,
+         "key" : "D",
+         "rhythm" : "Hornpipe",
+         "similarity_score" : 0.9291,
+         "title" : "Harvest Home"
+      },
+      {
+         "composer" : null,
+         "id" : 68746,
+         "key" : null,
+         "rhythm" : "",
+         "similarity_score" : 0.9421,
+         "title" : "Old Chattanooga"
+      },
+      {
+         "composer" : "Robert Trogn&amp;eacute;e, B. Pagano",
+         "id" : 53842,
+         "key" : "D",
+         "rhythm" : null,
+         "similarity_score" : 1.0539,
+         "title" : "Le retour des hirondelles"
+      }
+   ]
+}

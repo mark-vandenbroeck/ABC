@@ -29,17 +29,21 @@ if not logger.handlers:
     fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
     logger.addHandler(fh)
 
-def normalize_intervals(intervals, length=VECTOR_LEN):
+def normalize_intervals(intervals, length=None):
     """
-    Clip intervals and convert to fixed-length vector
+    Clip intervals to +/- MAX_INTERVAL. 
+    If length is None, returns the full sequence.
+    If length is specified, truncates/pads to that length (legacy behavior).
     """
-    v = np.zeros(length, dtype=np.float32)
-    n = min(len(intervals), length)
-
-    for i in range(n):
-        v[i] = np.clip(intervals[i], -MAX_INTERVAL, MAX_INTERVAL)
-
-    return v
+    if length is not None:
+        v = np.zeros(length, dtype=np.float32)
+        n = min(len(intervals), length)
+        for i in range(n):
+            v[i] = np.clip(intervals[i], -MAX_INTERVAL, MAX_INTERVAL)
+        return v
+    
+    # Return full sequence as list
+    return [np.clip(val, -MAX_INTERVAL, MAX_INTERVAL) for val in intervals]
 
 class ABCIndexer:
     def __init__(self, indexer_id):
@@ -54,11 +58,14 @@ class ABCIndexer:
         self.running = False
         sys.exit(0)
 
-def calculate_intervals(pitches_str):
+def calculate_intervals(pitches_str, allow_repeats=False):
     """
         Convert pitches to normalized intervals.
         Pitches are separated by comma, optionally followed by a space.
         Example: "60, 62, 64, 62" → "2.0, 2.0, -2.0, 0.0, ..."
+        
+        If allow_repeats is False, consecutive identical pitches are collapsed,
+        effectively removing all 0.0 intervals.
     """
     if not pitches_str or not pitches_str.strip():
         return ""
@@ -68,6 +75,19 @@ def calculate_intervals(pitches_str):
         pitches = [int(p.strip()) for p in pitches_str.split(',') if p.strip()]
         
         if not pitches:
+            return ""
+            
+        if not allow_repeats:
+            # Collapse consecutive identical pitches
+            filtered = []
+            if pitches:
+                filtered.append(pitches[0])
+                for i in range(1, len(pitches)):
+                    if pitches[i] != pitches[i-1]:
+                        filtered.append(pitches[i])
+            pitches = filtered
+            
+        if len(pitches) < 2:
             return ""
         
         # Calculate differences between consecutive pitches

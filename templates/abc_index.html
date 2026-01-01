@@ -498,8 +498,22 @@
                 </div>
 
                 <div style="margin-top: 25px;">
-                    <h4 style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
-                        Audio Speler</h4>
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 style="color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin: 0;">
+                            Audio Speler</h4>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label for="midi-program"
+                                style="font-size: 0.85rem; color: var(--text-dim);">Instrument:</label>
+                            <select id="midi-program" onchange="updateInstrument()"
+                                style="background: #0f172a; color: white; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 0.85rem; cursor: pointer; outline: none;">
+                                <option value="0">Piano</option>
+                                <option value="40">Viool</option>
+                                <option value="73">Fluit</option>
+                                <option value="21">Accordeon</option>
+                            </select>
+                        </div>
+                    </div>
                     <div id="audio-controls" class="abcjs-audio-container"></div>
                 </div>
 
@@ -551,6 +565,8 @@
         let currentData = [];
         let activeTuneAbc = "";
         let synthControl = null;
+        let currentVisualObj = null;
+        let currentMidiBuffer = null;
 
         async function performSearch(loadMore = false) {
             if (!loadMore) {
@@ -650,7 +666,7 @@
                 document.getElementById('similar-tunes-section').style.display = 'none';
                 document.getElementById('similar-tunes-list').innerHTML = '';
 
-                const visualObj = ABCJS.renderAbc("abc-view", tune.abc, {
+                currentVisualObj = ABCJS.renderAbc("abc-view", tune.abc, {
                     responsive: 'resize',
                     paddingbottom: 30,
                     paddingtop: 30,
@@ -658,21 +674,76 @@
                     paddingright: 15
                 })[0];
 
-                setupAudio(visualObj);
+                // Reset instrument selector to default (Piano) when loading a new tune
+                document.getElementById('midi-program').value = "0";
+
+                setupAudio(currentVisualObj);
             } catch (err) {
                 console.error(err);
                 alert("Tune details konden niet worden geladen.");
             }
         }
 
+        async function stopAudio() {
+            if (synthControl) {
+                try {
+                    // Try to pause first to stop immediate sound
+                    if (typeof synthControl.pause === 'function') {
+                        synthControl.pause();
+                    }
+                    // Disable the controller to release its UI and state
+                    synthControl.disable(true);
+                } catch (e) {
+                    console.warn("Error disabling synthControl:", e);
+                }
+            }
+
+            if (currentMidiBuffer) {
+                try {
+                    // This is crucial to stop the actual MIDI playback buffer
+                    if (typeof currentMidiBuffer.stop === 'function') {
+                        currentMidiBuffer.stop();
+                    }
+                } catch (e) {
+                    console.warn("Error stopping MIDI buffer:", e);
+                }
+            }
+
+            synthControl = null;
+            currentMidiBuffer = null;
+        }
+
         async function setupAudio(visualObj) {
             const audioDiv = document.getElementById('audio-controls');
-            if (ABCJS.synth.supportsAudio()) {
-                if (!synthControl) {
-                    synthControl = new ABCJS.synth.SynthController();
-                }
+            const program = parseInt(document.getElementById('midi-program').value) || 0;
 
-                synthControl.load("#audio-controls", null, {
+            // Clean up ANY existing audio before starting new one
+            await stopAudio();
+
+            // Clear container to avoid duplicate controls
+            audioDiv.innerHTML = '';
+
+            if (ABCJS.synth.supportsAudio()) {
+                // Determine if we have an old controller to clean up
+                // This block is now handled by stopAudio()
+                // if (synthControl) {
+                //     try {
+                //         synthControl.disable(true);
+                //     } catch (e) {
+                //         console.warn("Error disabling old synth", e);
+                //     }
+                // }
+
+                // Create a fresh container for this specific instance
+                const innerId = `audio-synth-${Date.now()}`;
+                const innerDiv = document.createElement('div');
+                innerDiv.id = innerId;
+                audioDiv.appendChild(innerDiv);
+
+                // Always create a fresh controller for the new tune
+                synthControl = new ABCJS.synth.SynthController();
+
+                synthControl.load(`#${innerId}`, null, {
                     displayLoop: true,
                     displayRestart: true,
                     displayPlay: true,
@@ -680,12 +751,18 @@
                     displayWarp: true
                 });
 
-                const midiBuffer = new ABCJS.synth.CreateSynth();
-                midiBuffer.init({ visualObj: visualObj }).then(function (response) {
+                currentMidiBuffer = new ABCJS.synth.CreateSynth();
+                currentMidiBuffer.init({
+                    visualObj: visualObj,
+                    options: {
+                        program: program
+                    }
+                }).then(function (response) {
                     synthControl.setTune(visualObj, false, {
-                        chordsOff: true
+                        chordsOff: true,
+                        program: program
                     }).then(function (response) {
-                        console.log("Audio synth ready");
+                        console.log("Audio synth ready with program", program);
                     }).catch(function (error) {
                         console.warn("Audio synth error", error);
                     });
@@ -694,6 +771,12 @@
                 });
             } else {
                 audioDiv.innerHTML = "<p style='color: var(--text-dim); font-size: 0.9rem;'>Audio wordt niet ondersteund in deze browser.</p>";
+            }
+        }
+
+        function updateInstrument() {
+            if (currentVisualObj) {
+                setupAudio(currentVisualObj);
             }
         }
 
@@ -763,7 +846,14 @@
         function closeModal() {
             document.getElementById('tune-modal').style.display = 'none';
             document.body.style.overflow = 'auto';
+
+            // Stop audio when closing modal
+            stopAudio();
         }
+
+        window.onbeforeunload = function () {
+            stopAudio();
+        };
 
         function clearFilters() {
             document.getElementById('q-search').value = '';
@@ -789,6 +879,20 @@
                 closeModal();
             }
         }
+
+        // Stop audio when leaving the page
+        window.onbeforeunload = function () {
+            if (typeof synthControl !== 'undefined' && synthControl) {
+                try {
+                    if (typeof synthControl.pause === 'function') {
+                        synthControl.pause();
+                    }
+                    synthControl.disable(true);
+                } catch (e) {
+                    // Ignore errors on unload
+                }
+            }
+        };
 
         // Initial search
         document.addEventListener('DOMContentLoaded', () => {

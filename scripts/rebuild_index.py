@@ -32,21 +32,12 @@ def rebuild_index():
             # Parse intervals string "1.0, 2.0, ..."
             vals = [float(x.strip()) for x in intervals_str.split(',') if x.strip()]
             
-            # Ensure fixed length (32) padding or trimming
-            # But the stored intervals should already be normalized by abc_indexer?
-            # actually abc_indexer.calculate_intervals calls normalize_intervals which returns a fixed length vector string.
-            # So we just need to load it.
+            # Use generate_windows to create multiple vectors per tune
+            windows = VectorIndex.generate_windows(vals)
             
-            if len(vals) != 32:
-                # Fallback normalization just in case
-                v = np.zeros(32, dtype=np.float32)
-                n = min(len(vals), 32)
-                v[:n] = vals[:n]
-                vectors.append(v)
-            else:
-                vectors.append(np.array(vals, dtype=np.float32))
-                
-            tune_ids.append(rid)
+            for w in windows:
+                vectors.append(w)
+                tune_ids.append(rid)
             
         except ValueError as e:
             logger.warning(f"Error parsing intervals for tune {rid}: {e}")

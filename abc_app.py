@@ -158,24 +158,48 @@ def get_tune(tune_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-def rerank_with_dtw(query_intervals, candidates, database_intervals):
+def rerank_with_dtw(query_intervals, candidates, database_intervals, faiss_distances=None):
     """
-    Rerank candidates using Dynamic Time Warping
+    Rerank candidates using a blend of FAISS window distance and normalized DTW.
+    FAISS distance is good for local phrase matching.
+    DTW is good for overall contour.
     """
     scored = []
+    q_len = len(query_intervals)
+    faiss_map = {c['tune_id']: c['distance'] for c in faiss_distances} if faiss_distances else {}
+    
     for tune_id in candidates:
         if tune_id not in database_intervals:
             continue
         candidate_intervals = database_intervals[tune_id]
+        c_len = len(candidate_intervals)
         
         # dtaidistance requires numpy arrays
         try:
+            # Normalize DTW distance by the length of the shorter segment or average?
+            # Actually, dividing by query length is a good way to get "cost per note"
             d = dtw.distance(
                 np.array(query_intervals, dtype=np.float64),
                 np.array(candidate_intervals, dtype=np.float64),
-                window=5
+                window=10 # Increased window for better alignment of variations
             )
-            scored.append((tune_id, d))
+            
+            # Normalized DTW (cost per note)
+            norm_dtw = d / q_len
+            
+            # Weighted Blend: 
+            # FAISS distance is already "squared error" sum for 16 notes.
+            # norm_dtw is also related to local error.
+            # If we have a very strong FAISS match (min_dist is small), it's a strong signal.
+            f_dist = faiss_map.get(tune_id, 1000)
+            
+            # Blend: 70% FAISS (local match), 30% Normalized DTW (global contour)
+            # We normalize FAISS by window size to get comparable "cost per note" scale
+            f_cost = f_dist / 16.0
+            
+            final_score = (f_cost * 0.7) + (norm_dtw * 0.3)
+            scored.append((tune_id, final_score))
+            
         except Exception as e:
             print(f"DTW error for tune {tune_id}: {e}")
             continue
@@ -198,14 +222,10 @@ def get_similar_tunes(tune_id):
         
         query_intervals = [float(x) for x in row[0].split(',') if x.strip()]
         
-        # 2. FAISS Preselection (top 100)
-        # Convert to fixed length vector (the index uses 32 dimensions)
-        q_vec = np.zeros(32, dtype=np.float32)
-        for i, val in enumerate(query_intervals[:32]):
-            q_vec[i] = val
-        
-        faiss_results = v_index.search(q_vec, k=100)
-        candidate_ids = [r['tune_id'] for r in faiss_results if r['tune_id'] != tune_id]
+        # 2. FAISS Preselection (Windowed Search)
+        # Use the new get_candidates method which handles query windowing and deduplication
+        faiss_candidates = v_index.get_candidates(query_intervals, k=100, exclude_id=tune_id)
+        candidate_ids = [r['tune_id'] for r in faiss_candidates]
         
         if not candidate_ids:
             conn.close()
@@ -235,15 +255,16 @@ def get_similar_tunes(tune_id):
                 'composer': r[4]
             }
             
-        # 4. Rerank with DTW
-        reranked = rerank_with_dtw(query_intervals, candidate_ids, db_intervals)
+        # 4. Rerank with DTW (using blended score)
+        reranked = rerank_with_dtw(query_intervals, candidate_ids, db_intervals, faiss_distances=faiss_candidates)
         
         # 5. Take top 10
         final_results = []
         for tid, dist in reranked[:10]:
-            meta = tune_meta[tid]
-            meta['similarity_score'] = round(dist, 4)
-            final_results.append(meta)
+            if tid in tune_meta:
+                meta = tune_meta[tid]
+                meta['similarity_score'] = round(dist, 4)
+                final_results.append(meta)
             
         conn.close()
         return jsonify({'results': final_results})
@@ -285,21 +306,21 @@ def sync_faiss_loop():
                         # Parse intervals string back to float list
                         vals = [float(x) for x in row[1].split(',') if x.strip()]
                         
-                        # Normalize/Pad/Truncate to 32 dims (VectorIndex.dimension)
-                        vec = np.zeros(32, dtype=np.float32)
-                        for i, val in enumerate(vals[:32]):
-                            vec[i] = val
+                        # Generate windows using the shared logic
+                        windows = VectorIndex.generate_windows(vals)
+                        
+                        for w in windows:
+                            tune_ids.append(row[0])
+                            vectors.append(w)
                             
-                        tune_ids.append(row[0])
-                        vectors.append(vec)
                     except ValueError:
                         continue
                 
                 if tune_ids:
                     # add_vectors handles the DB mapping insert + FAISS save
                     v_index.add_vectors(tune_ids, np.array(vectors))
-                    print(f"Sync Worker: Successfully indexed {len(tune_ids)} tunes")
-            
+                    print(f"Sync Worker: Successfully indexed {len(tune_ids)} vectors (from {len(rows)} tunes)")
+                        
             # Sleep before next check
             time.sleep(30)
             
@@ -309,7 +330,7 @@ def sync_faiss_loop():
 
 if __name__ == '__main__':
     # Start background sync thread
-    sync_thread = threading.Thread(target=sync_faiss_loop, daemon=True)
-    sync_thread.start()
+    # sync_thread = threading.Thread(target=sync_faiss_loop, daemon=True)
+    # sync_thread.start()
     
-    app.run(debug=True, host='0.0.0.0', port=5501)
+    app.run(debug=False, host='0.0.0.0', port=5501)

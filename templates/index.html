@@ -587,6 +587,27 @@
         <!-- Hosts Section -->
         <div id="hosts" class="section tab-content">
             <h2>Hosts</h2>
+            <div class="filters-row">
+                <label>
+                    <span>Host
+                        <span class="help-icon"
+                            title="Wildcards supported: * matches any sequence of characters">ⓘ</span>
+                    </span>
+                    <input type="text" id="host-filter-input" placeholder="e.g. *.com" style="width: 180px;">
+                </label>
+                <label>
+                    <span>HTTP Status</span>
+                    <input type="text" id="host-status-filter" placeholder="e.g. 404" style="width: 100px;">
+                </label>
+                <label>
+                    <span>Reason
+                        <span class="help-icon" title="Wildcards supported">ⓘ</span>
+                    </span>
+                    <input type="text" id="host-reason-filter" placeholder="e.g. dns" style="width: 180px;">
+                </label>
+                <button class="button" onclick="loadHosts()">Apply</button>
+                <button class="button" onclick="clearHostFilters()">Clear</button>
+            </div>
             <table id="hosts-table">
                 <thead>
                     <tr>
@@ -1201,9 +1222,27 @@
             }
         }
 
+        function clearHostFilters() {
+            const inputs = ['host-filter-input', 'host-status-filter', 'host-reason-filter'];
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            loadHosts();
+        }
+
         async function loadHosts() {
             try {
-                const response = await fetch('/api/hosts');
+                const hostFilter = document.getElementById('host-filter-input')?.value || '';
+                const statusFilter = document.getElementById('host-status-filter')?.value || '';
+                const reasonFilter = document.getElementById('host-reason-filter')?.value || '';
+
+                const params = new URLSearchParams();
+                if (hostFilter) params.append('host_filter', hostFilter);
+                if (statusFilter) params.append('status', statusFilter);
+                if (reasonFilter) params.append('reason', reasonFilter);
+
+                const response = await fetch(`/api/hosts?${params.toString()}`);
                 const data = await response.json();
 
                 const tbody = document.getElementById('hosts-tbody');

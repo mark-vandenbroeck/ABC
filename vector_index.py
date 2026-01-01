@@ -7,7 +7,7 @@ from database import get_db_connection
 logger = logging.getLogger('abc_indexer')
 
 class VectorIndex:
-    def __init__(self, index_path="data/tunes.index", dimension=32):
+    def __init__(self, index_path="data/tunes.index", dimension=16):
         self.index_path = index_path
         self.dimension = dimension
         self.index = None
@@ -23,15 +23,12 @@ class VectorIndex:
                 self.index = faiss.read_index(self.index_path)
                 logger.info(f"Loaded FAISS index from {self.index_path} ({self.index.ntotal} vectors)")
             else:
-                # HNSWFlat: Hierarchical Navigable Small World
-                # M=32 is the number of neighbors per node
-                self.index = faiss.IndexHNSWFlat(self.dimension, 32)
-                self.index.hnsw.efConstruction = 40
-                logger.info("Created new FAISS HNSW index")
+                self.index = faiss.IndexFlatL2(self.dimension)
+                logger.info("Created new FAISS FlatL2 index")
         except Exception as e:
             logger.error(f"Error loading/creating FAISS index: {e}")
             # Fallback to new index
-            self.index = faiss.IndexHNSWFlat(self.dimension, 32)
+            self.index = faiss.IndexFlatL2(self.dimension)
 
     def save(self):
         try:
@@ -90,9 +87,6 @@ class VectorIndex:
             # Reshape for search (1, dimension)
             q = query_vector.reshape(1, -1).astype('float32')
             
-            # efSearch controls speed/accuracy at search time
-            self.index.hnsw.efSearch = 64
-            
             distances, indices = self.index.search(q, k)
             
             # Get tune_ids from mapping
@@ -113,3 +107,67 @@ class VectorIndex:
         except Exception as e:
             logger.error(f"Error searching FAISS index: {e}")
             return []
+
+    @staticmethod
+    def generate_windows(intervals, window_size=16, stride=4):
+        """
+        Generate overlapping windows from interval list.
+        Returns list of numpy arrays, each of shape (window_size,)
+        """
+        if not intervals:
+            return []
+            
+        # If shorter than window, pad once and return
+        if len(intervals) <= window_size:
+            vec = np.zeros(window_size, dtype=np.float32)
+            for i, val in enumerate(intervals):
+                vec[i] = val
+            return [vec]
+            
+        windows = []
+        # Slide window
+        for i in range(0, len(intervals) - window_size + 1, stride):
+            window = intervals[i : i + window_size]
+            vec = np.zeros(window_size, dtype=np.float32)
+            for j, val in enumerate(window):
+                vec[j] = val
+            windows.append(vec)
+            
+        # Handle the tail if we missed a significant chunk?
+        # With stride logic, we might miss the very last few notes if they don't fit a full stride step
+        # but the specific overlap usually covers it.
+        
+        return windows
+
+    def get_candidates(self, query_intervals, k=100, exclude_id=None):
+        """
+        High-level search that handles window generation for the query
+        and deduplication of results.
+        """
+        # 1. Generate windows for query
+        query_vectors = self.generate_windows(query_intervals, self.dimension, stride=4)
+        
+        # 2. Search for each window
+        all_results = []
+        for q_vec in query_vectors:
+            results = self.search(q_vec, k=k)
+            all_results.extend(results)
+            
+        # 3. Deduplicate and aggregate
+        # Strategy: Keep the MINIMUM distance for each tune_id
+        best_scores = {}
+        for res in all_results:
+            tid = res['tune_id']
+            dist = res['distance']
+            
+            if exclude_id and tid == exclude_id:
+                continue
+                
+            if tid not in best_scores or dist < best_scores[tid]:
+                best_scores[tid] = dist
+                
+        # 4. Sort by distance
+        sorted_candidates = sorted(best_scores.items(), key=lambda x: x[1])
+        
+        # Return top K unique tunes
+        return [{'tune_id': tid, 'distance': dist} for tid, dist in sorted_candidates[:k]]

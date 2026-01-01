@@ -1,0 +1,295 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>README</title>
+        
+    <style>
+        body {
+            font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+            color: #24292e;
+        }
+        pre {
+            background-color: #f6f8fa;
+            padding: 16px;
+            border-radius: 6px;
+            overflow: auto;
+        }
+        code {
+            font-family: SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace;
+            font-size: 85%;
+            padding: 0.2em 0.4em;
+            margin: 0;
+            background-color: rgba(27,31,35,0.05);
+            border-radius: 3px;
+        }
+        pre code {
+            background-color: transparent;
+            padding: 0;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+        th, td {
+            border: 1px solid #dfe2e5;
+            padding: 6px 13px;
+        }
+        th {
+            background-color: #f6f8fa;
+        }
+        blockquote {
+            border-left: 0.25em solid #dfe2e5;
+            color: #6a737d;
+            padding: 0 1em;
+            margin: 0;
+        }
+        img {
+            max-width: 100%;
+        }
+        a {
+            color: #0366d6;
+            text-decoration: none;
+        }
+        h1, h2, h3 {
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: 0.3em;
+        }
+    </style>
+    
+    </head>
+    <body>
+        <h1 id="web-crawler-abc-music-search-system">Web Crawler &amp; ABC Music Search System</h1>
+<p>Een geavanceerd multi-process web crawler systeem gebouwd in Python, gespecializeerd in het vinden, indexeren en doorzoeken van ABC muziek nota's.</p>
+<h2 id="belangrijkste-features">Belangrijkste Features</h2>
+<ul>
+<li><strong>Melodie Zoeken (FAISS HNSW)</strong>: Zoek naar tunes op basis van muzikale gelijkenis met behulp van een high-performance vector index.</li>
+<li><strong>ABC Indexing</strong>: Automatische extractie van metadata (titel, toonsoort, ritme, etc.) en muzikale intervallen uit ABC bestanden.</li>
+<li><strong>Multi-process Architectuur</strong>: Schaalbaar systeem met onafhankelijke dispatchers, fetchers, parsers, indexers en purgers.</li>
+<li><strong>Real-time Controle</strong>: Volledige beheer-interface via Flask voor het monitoren van processen en statistieken.</li>
+</ul>
+<h2 id="componenten">Componenten</h2>
+<h3 id="1-url-dispatcher-url_dispatcherpy">1. URL Dispatcher (<code>url_dispatcher.py</code>)</h3>
+<ul>
+<li>Beheert de centrale werk-wachtrij vanuit SQLite.</li>
+<li>Verdeelt opdrachten over fetchers, parsers en indexers via socket-verbindingen.</li>
+<li>Garandeert dat taken efficiënt en zonder conflicten worden verdeeld.</li>
+</ul>
+<h3 id="2-url-fetcher-url_fetcherpy">2. URL Fetcher (<code>url_fetcher.py</code>)</h3>
+<ul>
+<li>Downloadt documenten en extraheert hyperlinks voor verdere crawling.</li>
+<li>Respecteert <code>robots.txt</code> en past beleefdheids-vertragingen toe per host.</li>
+</ul>
+<h3 id="3-url-parser-url_parserpy">3. URL Parser (<code>url_parser.py</code>)</h3>
+<ul>
+<li>Verwerkt gedownloade documenten met de <code>abc_parser.py</code> module.</li>
+<li>Identificeert ABC muziekblokken en slaat individuele tunes op met metadata.</li>
+</ul>
+<h3 id="4-abc-indexer-abc_indexerpy">4. ABC Indexer (<code>abc_indexer.py</code>)</h3>
+<ul>
+<li>Berekent 32-dimensionale pitch-interval vectoren voor elke tune.</li>
+<li>Normaliseert muzikale intervallen om transpositie-invariant zoeken mogelijk te maken.</li>
+</ul>
+<h3 id="5-faiss-sync-search-apppy-vector_indexpy">5. FAISS Sync &amp; Search (<code>app.py</code> &amp; <code>vector_index.py</code>)</h3>
+<ul>
+<li>Een achtergrond-thread in de Flask app synchroniseert berekende intervallen naar een FAISS HNSW index.</li>
+<li>Maakt bliksemsnelle "Nearest Neighbor" zoekopdrachten mogelijk op basis van melodie.</li>
+</ul>
+<h3 id="6-url-purger-url_purgerpy">6. URL Purger (<code>url_purger.py</code>)</h3>
+<ul>
+<li>Ruimt de database periodiek op (verwijderen van ongewenste extensies en problematische hosts).</li>
+</ul>
+<h2 id="installatie">Installatie</h2>
+<ol>
+<li>Installeer de systeem-dependencies (bijv. <code>faiss-cpu</code>, <code>numpy</code>, <code>music21</code>):</li>
+</ol>
+<div class="codehilite"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+</code></pre></div>
+
+<ol>
+<li>Initialiseer de database:</li>
+</ol>
+<div class="codehilite"><pre><span></span><code>python<span class="w"> </span>database.py
+</code></pre></div>
+
+<h2 id="data-process-flow">Data &amp; Process Flow</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">graph</span><span class="w"> </span><span class="n">TD</span>
+<span class="w">    </span><span class="n">subgraph</span><span class="w"> </span><span class="s">&quot;External&quot;</span>
+<span class="w">        </span><span class="n">Web</span><span class="p">[</span><span class="s">&quot;WWW (ABC Sources)&quot;</span><span class="p">]</span>
+<span class="w">    </span><span class="n">end</span>
+
+<span class="w">    </span><span class="n">subgraph</span><span class="w"> </span><span class="s">&quot;Crawling &amp; Parsing&quot;</span>
+<span class="w">        </span><span class="n">D</span><span class="p">[</span><span class="n">Dispatcher</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;--&gt;</span><span class="w"> </span><span class="n">F</span><span class="p">[</span><span class="n">Fetchers</span><span class="p">]</span>
+<span class="w">        </span><span class="n">F</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">HTML</span><span class="o">/</span><span class="n">ABC</span><span class="o">|</span><span class="w"> </span><span class="n">U</span><span class="p">[(</span><span class="n">URLs</span><span class="w"> </span><span class="n">Table</span><span class="p">)]</span>
+<span class="w">        </span><span class="n">D</span><span class="w"> </span><span class="o">&lt;--&gt;</span><span class="w"> </span><span class="n">P</span><span class="p">[</span><span class="n">Parsers</span><span class="p">]</span>
+<span class="w">        </span><span class="n">P</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">ABC</span><span class="w"> </span><span class="n">Header</span><span class="o">/</span><span class="n">Body</span><span class="o">|</span><span class="w"> </span><span class="n">T</span><span class="p">[(</span><span class="n">Tunes</span><span class="w"> </span><span class="n">Table</span><span class="p">)]</span>
+<span class="w">    </span><span class="n">end</span>
+
+<span class="w">    </span><span class="n">subgraph</span><span class="w"> </span><span class="s">&quot;Indexing &amp; Search&quot;</span>
+<span class="w">        </span><span class="n">D</span><span class="w"> </span><span class="o">&lt;--&gt;</span><span class="w"> </span><span class="n">I</span><span class="p">[</span><span class="n">Indexers</span><span class="p">]</span>
+<span class="w">        </span><span class="n">I</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">Pitch</span><span class="w"> </span><span class="n">Intervals</span><span class="o">|</span><span class="w"> </span><span class="n">T</span>
+<span class="w">        </span><span class="n">A</span><span class="p">[</span><span class="n">Flask</span><span class="w"> </span><span class="n">app</span><span class="p">]</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">Background</span><span class="w"> </span><span class="n">Sync</span><span class="o">|</span><span class="w"> </span><span class="n">FAISS</span><span class="p">[</span><span class="n">FAISS</span><span class="w"> </span><span class="n">HNSW</span><span class="w"> </span><span class="n">Index</span><span class="p">]</span>
+<span class="w">        </span><span class="n">A</span><span class="w"> </span><span class="o">--&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">Search</span><span class="w"> </span><span class="n">Query</span><span class="o">|</span><span class="w"> </span><span class="n">FAISS</span>
+<span class="w">        </span><span class="n">U_UI</span><span class="p">[</span><span class="n">Web</span><span class="w"> </span><span class="n">Interface</span><span class="p">]</span><span class="w"> </span><span class="o">&lt;--&gt;</span><span class="w"> </span><span class="n">A</span>
+<span class="w">    </span><span class="n">end</span>
+
+<span class="w">    </span><span class="n">Web</span><span class="w"> </span><span class="o">-</span><span class="p">.</span><span class="o">-&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">Download</span><span class="o">|</span><span class="w"> </span><span class="n">F</span>
+<span class="w">    </span><span class="n">T</span><span class="w"> </span><span class="o">-</span><span class="p">.</span><span class="o">-&gt;</span><span class="w"> </span><span class="o">|</span><span class="n">Sync</span><span class="o">|</span><span class="w"> </span><span class="n">FAISS</span>
+</code></pre></div>
+
+<h2 id="database-schema">Database Schema</h2>
+<div class="codehilite"><pre><span></span><code><span class="n">erDiagram</span>
+<span class="w">    </span><span class="n">tunebooks</span><span class="w"> </span><span class="o">||--</span><span class="n">o</span><span class="p">{</span><span class="w"> </span><span class="n">tunes</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="n">contains</span>
+<span class="w">    </span><span class="n">urls</span><span class="w"> </span><span class="o">||--</span><span class="n">o</span><span class="p">{</span><span class="w"> </span><span class="n">tunebooks</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;source of&quot;</span>
+<span class="w">    </span><span class="n">tunes</span><span class="w"> </span><span class="o">||--</span><span class="n">o</span><span class="o">|</span><span class="w"> </span><span class="n">faiss_mapping</span><span class="w"> </span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;mapped to&quot;</span>
+
+<span class="w">    </span><span class="n">urls</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">id</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">url</span>
+<span class="w">        </span><span class="n">timestamp</span><span class="w"> </span><span class="n">created_at</span>
+<span class="w">        </span><span class="n">timestamp</span><span class="w"> </span><span class="n">downloaded_at</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">size_bytes</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">status</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">mime_type</span>
+<span class="w">        </span><span class="n">blob</span><span class="w"> </span><span class="n">document</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">http_status</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">retries</span>
+<span class="w">        </span><span class="n">timestamp</span><span class="w"> </span><span class="n">dispatched_at</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">host</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="n">hosts</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">host</span>
+<span class="w">        </span><span class="n">timestamp</span><span class="w"> </span><span class="n">last_access</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">last_http_status</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">downloads</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">disabled</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">disabled_reason</span>
+<span class="w">        </span><span class="n">timestamp</span><span class="w"> </span><span class="n">disabled_at</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="n">tunebooks</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">id</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">url</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">status</span>
+<span class="w">        </span><span class="n">timestamp</span><span class="w"> </span><span class="n">created_at</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="n">tunes</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">id</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">tunebook_id</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">reference_number</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">title</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">composer</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">key</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">rhythm</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">tune_body</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">pitches</span>
+<span class="w">        </span><span class="n">string</span><span class="w"> </span><span class="n">intervals</span>
+<span class="w">    </span><span class="p">}</span>
+
+<span class="w">    </span><span class="n">faiss_mapping</span><span class="w"> </span><span class="p">{</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">faiss_id</span>
+<span class="w">        </span><span class="nb nb-Type">int</span><span class="w"> </span><span class="n">tune_id</span>
+<span class="w">    </span><span class="p">}</span>
+</code></pre></div>
+
+<h3 id="belangrijkste-tabellen">Belangrijkste Tabellen</h3>
+<ul>
+<li><strong><code>urls</code></strong>: De centrale tabel voor alle gecrawlde en nog te crawlen links. Bevat de ruwe content (document) en status.</li>
+<li><strong><code>hosts</code></strong>: Houdt per host de <code>last_access</code> bij voor rate-limiting en DNS status.</li>
+<li><strong><code>tunebooks</code></strong>: Groepeert tunes die van dezelfde bron-URL komen. De <code>status</code> kolom geeft aan of de tunes al geëxtraheerd zijn.</li>
+<li><strong><code>tunes</code></strong>: Bevat de muzikale metadata en de berekende <code>pitches</code> en <code>intervals</code>.</li>
+<li><strong><code>faiss_mapping</code></strong>: De koppeling tussen de interne ID's van de FAISS index en de <code>tune_id</code> in SQLite.</li>
+</ul>
+<h2 id="gebruik">Gebruik</h2>
+<ol>
+<li>Start het volledige systeem:</li>
+</ol>
+<div class="codehilite"><pre><span></span><code>make<span class="w"> </span>start
+<span class="c1"># Dit start: Dispatcher, Management App (poort 5500) en Search App (poort 5501)</span>
+</code></pre></div>
+
+<ol>
+<li>Web Interfaces:</li>
+<li><strong>Management Dashboard (<code>http://localhost:5500</code>)</strong>: Beheer van processen (fetchers, parsers, indexers), bekijk crawler statistieken en configureer filters.<ul>
+<li><strong>Nieuw</strong>: Process Control pagina is herontworpen met een overzichtelijke 2-koloms layout.</li>
+</ul>
+</li>
+<li><strong>ABC Tune Explorer (<code>http://localhost:5501</code>)</strong>: De premium zoek-interface voor eindgebruikers.<ul>
+<li><strong>Nieuw</strong>: Zoek op Tune ID (bijv. <code>77277</code>).</li>
+<li><strong>Nieuw</strong>: "Vind gelijkaardige melodieën" knop maakt gebruik van FAISS (snelle voorselectie) en DTW (precieze ranking) om muzikale variaties te vinden.</li>
+<li>Bevat robuuste rendering van bladmuziek en audio via een lokale fallback van de <code>ABCJS</code> bibliotheek.</li>
+</ul>
+</li>
+</ol>
+<h2 id="gebruikershandleiding-abc-tune-explorer">Gebruikershandleiding: ABC Tune Explorer</h2>
+<h3 id="1-zoeken-navigeren">1. Zoeken &amp; Navigeren</h3>
+<p>De interface is ontworpen om intuïtief toegang te geven tot duizenden traditionele melodieën.</p>
+<h4 id="zoekvelden">Zoekvelden</h4>
+<ul>
+<li><strong>Algemeen Zoekveld</strong>: Dit is een krachtige alleskunner.<ul>
+<li><em>Titel</em>: Typ (een deel van) de titel, bijv. "Glory".</li>
+<li><em>Tune ID</em>: Weet je het ID nummer? Typ het direct in (bijv. <code>77277</code>) om exact die tune te openen.</li>
+<li><em>Wildcards</em>: Zoeken is standaard "bevat", dus je hoeft geen <code>*</code> te gebruiken.</li>
+</ul>
+</li>
+<li><strong>Specifieke Filters</strong>:<ul>
+<li><em>Key (Toonsoort)</em>: Filter op toonsoort. Gebruik standaard notatie zoals <code>G</code> (G majeur), <code>Am</code> (A mineur), <code>Dmix</code> (D Mixolydisch).</li>
+<li><em>Rhythm (Ritme)</em>: Filter op type dans of metrum, zoals <code>Reel</code>, <code>Jig</code>, <code>Hornpipe</code>, <code>Waltz</code>.</li>
+<li><em>Composer (Componist)</em>: Zoek naar tunes van of toegeschreven aan een specifieke persoon.</li>
+</ul>
+</li>
+</ul>
+<h4 id="resultaten">Resultaten</h4>
+<p>De resultaten verschijnen direct onder de zoekbalk in een responsive grid. Elke kaart toont de titel en de belangrijkste metadata. Klik op <strong>"Bekijk melodie"</strong> op een kaart om het detailvenster te openen.</p>
+<h3 id="2-melodie-detailvenster">2. Melodie Detailvenster</h3>
+<p>Dit is het hart van de applicatie, waar je de muziek kunt lezen, horen en analyseren.</p>
+<h4 id="muziekweergave-audio">Muziekweergave &amp; Audio</h4>
+<ul>
+<li><strong>Partituur</strong>: De ABC code wordt automatisch omgezet naar leesbare bladmuziek.</li>
+<li><strong>Audio Speler</strong>:<ul>
+<li>Gebruik de <strong>Play/Pause</strong> knop om de melodie te beluisteren (gesynthetiseerde piano).</li>
+<li><strong>Progres Bar</strong>: Sleep om naar een specifiek punt te springen.</li>
+<li><strong>Loop Functie</strong>: Schakel herhaling in om een lastige passage te oefenen.</li>
+<li><strong>Tempo</strong>: Pas de afspeelsnelheid aan zonder de toonhoogte te veranderen.</li>
+</ul>
+</li>
+<li><strong>Broncode</strong>: Bekijk de ruwe ABC tekst ("ABC Broncode") om te zien hoe de muziek genoteerd is.</li>
+<li><strong>Download</strong>: Klik op "Download ABC" om het bestand lokaal op te slaan.</li>
+</ul>
+<h4 id="vind-gelijkaardige-melodieen">"Vind gelijkaardige melodieën"</h4>
+<p>Deze geavanceerde functie helpt je varianten en gerelateerde tunes te ontdekken.
+1.  Klik op de knop <strong>"Vind gelijkaardige melodieën"</strong> onderaan de details.
+2.  Het systeem analyseert de <em>intervallen</em> van de huidige melodie.
+3.  Er verschijnt een lijst met tunes die muzikaal sterk lijken op de huidige.
+    *   <strong>Score Verklaring</strong>: De score (bijv. <code>3.4</code> of <code>12.1</code>) is de "afstand" tussen de melodieën.
+        *   <strong>0.0</strong>: Exacte match (dezelfde notenvolgorde).
+        *   <strong>&lt; 10.0</strong>: Zeer waarschijnlijk een nauwe variant of dezelfde tune in een andere setting.
+        *   <strong>&gt; 20.0</strong>: Melodieën delen karakteristieken maar zijn duidelijk anders.</p>
+<h3 id="3-systeembeheer-management-dashboard">3. Systeembeheer (Management Dashboard)</h3>
+<p>Bereikbaar via <code>http://localhost:5500</code>. Dit paneel is voor beheerders en power-users.</p>
+<ul>
+<li><strong>Process Control</strong>:<ul>
+<li><strong>Dispatcher</strong>: Het brein dat taken uitdeelt. Moet altijd aan staan ("Running").</li>
+<li><strong>Purger</strong>: Ruimt periodiek de database op (verwijdert ongeldige/geblokkeerde URL's).</li>
+<li><strong>Fetchers/Parsers/Indexers</strong>: Schaalbare 'workers'. Voeg er meer toe ("Add Fetcher") om sneller te crawlen, of minder om systeembronnen te sparen.</li>
+<li><strong>Stop All Processes</strong>: De rode noodknop onderaan stopt het hele systeem veilig.</li>
+</ul>
+</li>
+<li><strong>Statistics</strong>: Real-time grafieken en tellers over de voortgang van de crawler en de omvang van de index.</li>
+<li><strong>Hosts</strong>: Beheer welke websites (domeinen) benaderd mogen worden. Je kunt hier specifieke hosts blokkeren of deblokkeren.</li>
+</ul>
+<h2 id="architectuur-communicatie">Architectuur &amp; Communicatie</h2>
+<p>Het systeem gebruikt een ster-architectuur waarbij de <code>Dispatcher</code> het middelpunt is. Communicatie verloopt via JSON-over-sockets, wat een robuuste scheiding van taken mogelijk maakt. De FAISS index wordt beheerd volgens het "Single Writer" principe in de Flask app om data-corruptie te voorkomen.</p>
+<hr />
+<p><em>Ontwikkeld voor het efficiënt verzamelen en analyseren van traditionele muziek.</em></p>
+    </body>
+    </html>
+    
