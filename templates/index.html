@@ -321,6 +321,7 @@
             <div class="tab" data-tab="statistics" role="tab" tabindex="0">Statistics</div>
             <div class="tab" data-tab="url-queue" role="tab" tabindex="0">URL Queue</div>
             <div class="tab" data-tab="hosts" role="tab" tabindex="0">Hosts</div>
+            <div class="tab" data-tab="melody-search" role="tab" tabindex="0">Melody Search</div>
             <div class="tab" data-tab="mime-types" role="tab" tabindex="0">Configuration</div>
         </div>
 
@@ -376,6 +377,42 @@
         <div id="statistics" class="section tab-content">
             <h2>Statistics</h2>
             <div class="stats-grid" id="stats-grid"></div>
+        </div>
+
+        <!-- Melody Search Section -->
+        <div id="melody-search" class="section tab-content">
+            <h2>Melody Search (FAISS HNSW)</h2>
+            <div class="form-group">
+                <label>Enter pitches (comma-separated):</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="text" id="search-pitches" placeholder="e.g. 60, 62, 64, 65, 67"
+                        style="flex:1; padding: 10px; border: 1px solid #ddd; border-radius: 4px;">
+                    <button class="button" onclick="searchMelody()">Search</button>
+                </div>
+                <p style="font-size: 0.9em; color: #666; margin-top: 5px;">
+                    Searches for similar melodies using normalized pitch intervals.
+                    <span id="faiss-sync-status" style="margin-left:10px; font-weight:bold; color:#27ae60;"></span>
+                </p>
+            </div>
+            <div id="search-results" style="margin-top: 20px;">
+                <div class="table-responsive">
+                    <table class="table" id="search-results-table" style="display:none; width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Key</th>
+                                <th>Rhythm</th>
+                                <th>Distance</th>
+                                <th>Link</th>
+                            </tr>
+                        </thead>
+                        <tbody id="search-results-body"></tbody>
+                    </table>
+                </div>
+                <div id="search-no-results" style="text-align:center; padding:20px; color:#666; display:none;">
+                    No results found.
+                </div>
+            </div>
         </div>
 
         <!-- URL Management Section -->
@@ -1275,6 +1312,20 @@
                         <div class="stat-value">${formatNumber(data.total_tunes || 0)}</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-label">FAISS Index Size</div>
+                        <div class="stat-value" title="Total vectors in HNSW index">${formatNumber(data.total_vectors || 0)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Indexed Tunebooks</div>
+                        <div class="stat-value">${formatNumber(data.total_indexed_tunebooks || 0)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Tunes to Index</div>
+                        <div class="stat-value" style="${(data.total_pending_index_tunes > 0) ? 'color: #e67e22;' : ''}">
+                            ${formatNumber(data.total_pending_index_tunes || 0)}
+                        </div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-label">Total Size</div>
                         <div class="stat-value">${formatBytes(data.total_size_bytes || 0)}</div>
                     </div>
@@ -1296,6 +1347,54 @@
             let parts = num.toString().split(".");
             parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
             return parts.join(",");
+        }
+
+        async function searchMelody() {
+            const pitches = document.getElementById('search-pitches').value;
+            if (!pitches) return;
+
+            const resultsBody = document.getElementById('search-results-body');
+            const resultsTable = document.getElementById('search-results-table');
+            const noResults = document.getElementById('search-no-results');
+
+            resultsBody.innerHTML = '<tr><td colspan="5" style="text-align:center;">Searching...</td></tr>';
+            resultsTable.style.display = 'table';
+            noResults.style.display = 'none';
+
+            try {
+                const response = await fetch('/api/search/melody', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ pitches: pitches, k: 20 })
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Error: ${data.error}</td></tr>`;
+                    return;
+                }
+
+                if (data.length === 0) {
+                    resultsTable.style.display = 'none';
+                    noResults.style.display = 'block';
+                    return;
+                }
+
+                resultsBody.innerHTML = '';
+                data.forEach(tune => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${tune.title}</td>
+                        <td>${tune.key || '-'}</td>
+                        <td>${tune.rhythm || '-'}</td>
+                        <td><code>${tune.distance.toFixed(4)}</code></td>
+                        <td><a href="${tune.url}" target="_blank" class="button button-sm" style="text-decoration:none; padding:4px 8px; font-size:0.85em;">View</a></td>
+                    `;
+                    resultsBody.appendChild(row);
+                });
+            } catch (error) {
+                resultsBody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red;">Error: ${error}</td></tr>`;
+            }
         }
     </script>
 </body>

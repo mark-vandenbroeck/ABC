@@ -50,7 +50,13 @@ class URLParser:
             cursor.execute('SELECT id FROM tunebooks WHERE url = ?', (tunebook_data['url'],))
             tunebook_id = cursor.fetchone()[0]
 
-            # 2. Insert into tunes
+            # 2. Prevent duplicate tunes: Delete existing tunes if we are re-parsing
+            cursor.execute('DELETE FROM tunes WHERE tunebook_id = ?', (tunebook_id,))
+            
+            # 3. Trigger re-indexing: Reset tunebook status to '' so dispatcher/indexer will pick it up again
+            cursor.execute("UPDATE tunebooks SET status = '' WHERE id = ?", (tunebook_id,))
+
+            # 4. Insert into tunes
             for tune in tunebook_data['tunes']:
                 meta = tune['metadata']
                 cursor.execute('''

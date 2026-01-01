@@ -39,3 +39,10 @@ wheels/
 .DS_Store
 Thumbs.db
 
+
+# Logs and Runtime
+logs/
+run/
+*.log
+data/
+

@@ -4,10 +4,61 @@ import subprocess
 import os
 import signal
 import json
+import threading
+import time
+import numpy as np
 from database import get_db_connection, DB_PATH, init_database
 from log_rotator import RotatingFileWriter
+from vector_index import VectorIndex
+from abc_indexer import calculate_intervals
 
 app = Flask(__name__)
+
+# Initialize FAISS index
+vector_index = VectorIndex()
+
+def sync_faiss_background():
+    """Background thread to sync SQLite tunes with FAISS index"""
+    # print("FAISS Sync Thread started")
+    while True:
+        try:
+            conn = get_db_connection()
+            if conn:
+                cursor = conn.cursor()
+                # Find tunes that have intervals but are not in the FAISS index
+                cursor.execute('''
+                    SELECT t.id, t.intervals 
+                    FROM tunes t 
+                    LEFT JOIN faiss_mapping fm ON t.id = fm.tune_id 
+                    WHERE fm.tune_id IS NULL AND t.intervals IS NOT NULL AND t.intervals != ''
+                    LIMIT 1000
+                ''')
+                rows = cursor.fetchall()
+                conn.close()
+                
+                if rows:
+                    tune_ids = []
+                    vectors = []
+                    for row in rows:
+                        tune_id, interval_str = row
+                        try:
+                            v = np.array([float(x) for x in interval_str.split(',')], dtype='float32')
+                            if v.shape[0] == 32:
+                                tune_ids.append(tune_id)
+                                vectors.append(v)
+                        except Exception:
+                            continue
+                    
+                    if tune_ids:
+                        vector_index.add_vectors(tune_ids, np.array(vectors))
+                
+            time.sleep(5)
+        except Exception as e:
+            # print(f"FAISS Sync Error: {e}")
+            time.sleep(10)
+
+# Start background sync
+threading.Thread(target=sync_faiss_background, daemon=True).start()
 
 # Store process PIDs
 processes = {
@@ -136,7 +187,7 @@ def get_process_info():
             except: pass
     else:
         # Check run/ directory for any indexer pidfiles we might have missed
-        if os.exists('run'):
+        if os.path.exists('run'):
             for f in os.listdir('run'):
                 if f.startswith('indexer.') and f.endswith('.pid'):
                     indexer_id = f.split('.')[1]
@@ -179,6 +230,12 @@ def get_process_info():
             if p['status'] == 'running':
                 cursor.execute("INSERT INTO processes (pid, type, status) VALUES (?, ?, ?)", 
                              (p['pid'], f'parser:{p["id"]}', 'running'))
+                
+        # Add indexers
+        for i in info['indexers']:
+            if i['status'] == 'running':
+                cursor.execute("INSERT INTO processes (pid, type, status) VALUES (?, ?, ?)", 
+                             (i['pid'], f'indexer:{i["id"]}', 'running'))
                 
         conn.commit()
         conn.close()
@@ -959,9 +1016,69 @@ def get_stats():
     cursor.execute("SELECT COUNT(*) FROM tunes")
     stats['total_tunes'] = cursor.fetchone()[0]
 
+    cursor.execute("SELECT COUNT(*) FROM tunebooks WHERE status = 'indexed'")
+    stats['total_indexed_tunebooks'] = cursor.fetchone()[0]
+
+    cursor.execute("SELECT COUNT(*) FROM tunes WHERE intervals IS NULL")
+    stats['total_pending_index_tunes'] = cursor.fetchone()[0]
+
+    # FAISS Stats
+    stats['total_vectors'] = vector_index.index.ntotal
+
     conn.close()
     
     return jsonify(stats)
+
+@app.route('/api/search/melody', methods=['POST'])
+def search_melody():
+    """Search for tunes by melody (pitches)"""
+    data = request.json
+    pitches = data.get('pitches', '')
+    k = data.get('k', 20)
+    
+    if not pitches:
+        return jsonify({'error': 'No pitches provided'}), 400
+        
+    try:
+        # Calculate search vector
+        interval_str = calculate_intervals(pitches)
+        if not interval_str:
+            return jsonify({'error': 'Could not calculate intervals from pitches'}), 400
+            
+        # Convert to numpy
+        query_vector = np.array([float(x) for x in interval_str.split(',')], dtype='float32')
+        
+        # Search index
+        results = vector_index.search(query_vector, k=k)
+        
+        # Enrich results
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        enriched = []
+        for res in results:
+            tune_id = res['tune_id']
+            cursor.execute('''
+                SELECT t.title, t.key, t.rhythm, tb.url 
+                FROM tunes t
+                JOIN tunebooks tb ON t.tunebook_id = tb.id
+                WHERE t.id = ?
+            ''', (tune_id,))
+            row = cursor.fetchone()
+            if row:
+                enriched.append({
+                    'id': tune_id,
+                    'title': row[0],
+                    'key': row[1],
+                    'rhythm': row[2],
+                    'url': row[3],
+                    'distance': round(res['distance'], 4)
+                })
+        conn.close()
+        
+        return jsonify(enriched)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Ensure database and schema are initialized/up-to-date
