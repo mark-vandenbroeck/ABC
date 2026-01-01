@@ -61,15 +61,24 @@ class Tune:
                 match = header_pattern.match(line)
                 if match:
                     key, value = match.groups()
+                    # Strip trailing comments from header values
+                    value = re.sub(r'%.*', '', value).strip()
+                    
                     if key in self.METADATA_MAPPING:
                         db_key = self.METADATA_MAPPING[key]
                         self.metadata[db_key] = value
                     
                     if key == 'T' and self.title == "Untitled":
                         self.title = value
+                        
+                    if key == 'K':
+                        # Key is usually the last header line
+                        in_header = False
+                elif line.startswith('%'):
+                    # Comments are allowed in headers, don't end header yet
+                    continue
                 else:
-                    # Once we hit a line that isn't a header field, body starts
-                    # (Note: ABC standard specifies K field ends header)
+                    # Once we hit a line that isn't a header field or a comment, the tune body starts
                     in_header = False
                     body_lines.append(line)
             else:
