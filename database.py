@@ -156,6 +156,65 @@ def init_database():
     except Exception:
         pass
 
+    # Tunebooks table for storing ABC music tunebooks
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tunebooks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT UNIQUE NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    # Add status column to tunebooks table
+    cursor.execute("PRAGMA table_info(tunebooks)")
+    tunebook_cols = [row[1] for row in cursor.fetchall()]
+    if 'status' not in tunebook_cols:
+        try:
+            cursor.execute('ALTER TABLE tunebooks ADD COLUMN status TEXT DEFAULT ""')
+        except Exception:
+            pass
+
+    # Tunes table for storing individual ABC tunes
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS tunes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tunebook_id INTEGER NOT NULL,
+            reference_number TEXT,
+            title TEXT,
+            composer TEXT,
+            origin TEXT,
+            area TEXT,
+            meter TEXT,
+            unit_note_length TEXT,
+            tempo TEXT,
+            parts TEXT,
+            transcription TEXT,
+            notes TEXT,
+            "group" TEXT,
+            history TEXT,
+            key TEXT,
+            rhythm TEXT,
+            book TEXT,
+            discography TEXT,
+            source TEXT,
+            instruction TEXT,
+            tune_body TEXT NOT NULL,
+            pitches TEXT,
+            intervals TEXT,
+            FOREIGN KEY (tunebook_id) REFERENCES tunebooks(id)
+        )
+    ''')
+
+    # Add intervals column if missing (migration)
+    cursor.execute("PRAGMA table_info(tunes)")
+    tune_cols = [row[1] for row in cursor.fetchall()]
+    if 'intervals' not in tune_cols:
+        try:
+            cursor.execute('ALTER TABLE tunes ADD COLUMN intervals TEXT')
+        except Exception:
+            pass
+
+
     conn.commit()
     conn.close()
 

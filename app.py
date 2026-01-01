@@ -14,7 +14,8 @@ processes = {
     'dispatcher': None,
     'purger': None,
     'fetchers': {},
-    'parsers': {}
+    'parsers': {},
+    'indexers': {}
 }
 
 def get_process_info():
@@ -23,7 +24,8 @@ def get_process_info():
         'dispatcher': None,
         'purger': None,
         'fetchers': [],
-        'parsers': []
+        'parsers': [],
+        'indexers': []
     }
     
     # Check dispatcher
@@ -121,6 +123,34 @@ def get_process_info():
                             except OSError:
                                 try: os.remove(os.path.join('run', f))
                                 except: pass
+
+    # Check indexers
+    for indexer_id, pid in list(processes['indexers'].items()):
+        try:
+            os.kill(pid, 0)
+            info['indexers'].append({'id': indexer_id, 'pid': pid, 'status': 'running'})
+        except OSError:
+            info['indexers'].append({'id': indexer_id, 'pid': pid, 'status': 'stopped'})
+            del processes['indexers'][indexer_id]
+            try: os.remove(os.path.join('run', f'indexer.{indexer_id}.pid'))
+            except: pass
+    else:
+        # Check run/ directory for any indexer pidfiles we might have missed
+        if os.exists('run'):
+            for f in os.listdir('run'):
+                if f.startswith('indexer.') and f.endswith('.pid'):
+                    indexer_id = f.split('.')[1]
+                    if indexer_id not in processes['indexers']:
+                        pid_from_file = _read_pidfile(os.path.join('run', f))
+                        if pid_from_file:
+                            try:
+                                os.kill(pid_from_file, 0)
+                                processes['indexers'][indexer_id] = pid_from_file
+                                info['indexers'].append({'id': indexer_id, 'pid': pid_from_file, 'status': 'running'})
+                            except OSError:
+                                try: os.remove(os.path.join('run', f))
+                                except: pass
+
 
     # Sync with database
     try:
@@ -348,10 +378,11 @@ def add_parser():
 def remove_parser(parser_id):
     """Remove a parser process"""
     if parser_id not in processes['parsers']:
-        return jsonify({'status': 'error', 'message': f'Parser {parser_id} not found'}), 404
+        return jsonify({'status': 'error', 'message': f'Parser {parser_id} not running'}), 400
     
     try:
         os.kill(processes['parsers'][parser_id], signal.SIGTERM)
+        # Clean up pidfile
         try:
             pidfile = os.path.join(os.getcwd(), 'run', f'parser.{parser_id}.pid')
             if os.path.exists(pidfile):
@@ -363,9 +394,61 @@ def remove_parser(parser_id):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/api/processes/indexer/add', methods=['POST'])
+def add_indexer():
+    """Add a new indexer process"""
+    data = request.json or {}
+    indexer_id = data.get('id') or str(len(processes['indexers']) + 1)
+    
+    if indexer_id in processes['indexers']:
+        try:
+            os.kill(processes['indexers'][indexer_id], 0)
+            return jsonify({'status': 'error', 'message': f'Indexer {indexer_id} already running'}), 400
+        except OSError:
+            pass
+    
+    try:
+        os.makedirs('logs', exist_ok=True)
+        log_file = RotatingFileWriter('logs/indexer_out.log', max_bytes=3145728, backup_count=4)
+        proc = subprocess.Popen(['python', '-u', 'abc_indexer.py', indexer_id],
+                              stdout=log_file,
+                              stderr=log_file)
+        processes['indexers'][indexer_id] = proc.pid
+        # Write pidfile
+        try:
+            os.makedirs('run', exist_ok=True)
+            with open(os.path.join('run', f'indexer.{indexer_id}.pid'), 'w') as f:
+                f.write(str(proc.pid))
+        except Exception:
+            pass
+        return jsonify({'status': 'ok', 'id': indexer_id, 'pid': proc.pid})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+@app.route('/api/processes/indexer/<indexer_id>/remove', methods=['POST'])
+def remove_indexer(indexer_id):
+    """Remove an indexer process"""
+    if indexer_id not in processes['indexers']:
+        return jsonify({'status': 'error', 'message': f'Indexer {indexer_id} not running'}), 400
+    
+    try:
+        os.kill(processes['indexers'][indexer_id], signal.SIGTERM)
+        # Clean up pidfile
+        try:
+            pidfile = os.path.join(os.getcwd(), 'run', f'indexer.{indexer_id}.pid')
+            if os.path.exists(pidfile):
+                os.remove(pidfile)
+        except Exception:
+            pass
+        del processes['indexers'][indexer_id]
+        return jsonify({'status': 'ok'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
 @app.route('/api/processes/stop-all', methods=['POST'])
 def stop_all_processes():
-    """Stop all running processes (dispatcher, purger, fetchers, parsers)"""
+    """Stop all running processes (dispatcher, purger, fetchers, parsers, indexers)"""
     stopped = []
     errors = []
     
@@ -398,6 +481,21 @@ def stop_all_processes():
             stopped.append(f'parser-{parser_id}')
         except Exception as e:
             errors.append(f'parser-{parser_id}: {str(e)}')
+    
+    # Stop all indexers
+    for indexer_id in list(processes['indexers'].keys()):
+        try:
+            os.kill(processes['indexers'][indexer_id], signal.SIGTERM)
+            try:
+                pidfile = os.path.join(os.getcwd(), 'run', f'indexer.{indexer_id}.pid')
+                if os.path.exists(pidfile):
+                    os.remove(pidfile)
+            except Exception:
+                pass
+            del processes['indexers'][indexer_id]
+            stopped.append(f'indexer-{indexer_id}')
+        except Exception as e:
+            errors.append(f'indexer-{indexer_id}: {str(e)}')
     
     # Stop purger
     if processes['purger']:

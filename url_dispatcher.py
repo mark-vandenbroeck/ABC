@@ -269,6 +269,76 @@ class URLDispatcher:
             return []
         finally:
             conn.close()
+    
+    def get_next_tunebook(self, dispatch_timeout_seconds=300):
+        """Get the next tunebook that needs indexing (status = '')."""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        timeout_param = f'-{dispatch_timeout_seconds} seconds'
+        
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            
+            # Select tunebooks that are new ('') OR 'indexing' but timed out
+            cursor.execute('''
+                SELECT id
+                FROM tunebooks
+                WHERE status = ''
+                   OR (status = 'indexing' AND created_at <= datetime('now', ?))
+                ORDER BY created_at ASC
+                LIMIT 1
+            ''', (timeout_param,))
+            
+            row = cursor.fetchone()
+            if not row:
+                conn.commit()
+                return None
+            
+            tunebook_id = row[0]
+            
+            # Mark as indexing
+            cursor.execute('''
+                UPDATE tunebooks
+                SET status = 'indexing'
+                WHERE id = ?
+            ''', (tunebook_id,))
+            
+            conn.commit()
+            return tunebook_id
+            
+        except Exception as e:
+            print(f"Error getting next tunebook: {e}")
+            try:
+                conn.rollback()
+            except:
+                pass
+            return None
+        finally:
+            conn.close()
+    
+    def mark_tunebook_indexed(self, tunebook_id, success=True):
+        """Mark a tunebook as indexed"""
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        try:
+            status = 'indexed' if success else 'error'
+            cursor.execute('''
+                UPDATE tunebooks
+                SET status = ?
+                WHERE id = ?
+            ''', (status, tunebook_id))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            print(f"Error marking tunebook {tunebook_id} as indexed: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
 
     def handle_client_request(self, client_socket, address):
         """Handle a request from a fetcher or parser"""
@@ -409,6 +479,28 @@ class URLDispatcher:
                  # --- PARSER: Submit Result (Standalone) ---
                  self._handle_parsed_result(request)
                  client_socket.send(b'ack\n')
+            
+            elif action == 'get_tunebook':
+                # --- INDEXER: Request tunebook ---
+                tunebook_id = self.get_next_tunebook()
+                if tunebook_id:
+                    response = {'status': 'ok', 'tunebook_id': tunebook_id}
+                else:
+                    response = {'status': 'empty'}
+                client_socket.send(json.dumps(response).encode('utf-8'))
+            
+            elif action == 'submit_indexed_result':
+                # --- INDEXER: Submit indexing result ---
+                tunebook_id = request.get('tunebook_id')
+                success = request.get('success', True)
+                
+                if tunebook_id is None:
+                    response = {'status': 'error', 'message': 'Missing tunebook_id'}
+                else:
+                    self.mark_tunebook_indexed(tunebook_id, success)
+                    response = {'status': 'ok'}
+                client_socket.send(json.dumps(response).encode('utf-8'))
+
 
         except Exception as e:
             print(f"Error handling client request: {e}")
