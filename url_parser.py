@@ -15,13 +15,16 @@ DISPATCHER_PORT = 8888
 
 # Logging configuration
 LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'parser.log'
+# Configure root logger to capture library logs (like abc_parser)
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)
+
+# 3 MB = 3145728 bytes
+fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
+fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
+root_logger.addHandler(fh)
+
 logger = logging.getLogger('url_parser')
-logger.setLevel(logging.INFO)
-if not logger.handlers:
-    # 3 MB = 3145728 bytes
-    fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
-    fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-    logger.addHandler(fh)
 
 class URLParser:
     def __init__(self, parser_id):

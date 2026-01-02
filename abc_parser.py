@@ -2,6 +2,7 @@ import sys
 import json
 import re
 import logging
+import signal
 from datetime import datetime
 from database import get_db_connection
 try:
@@ -181,8 +182,20 @@ class Tune:
         """
         Parse ABC notation and return a list of MIDI pitches using music21
         """
+        if not MUSIC21_AVAILABLE:
+            return self._extract_pitches_from_elements()
+
+        def timeout_handler(signum, frame):
+            raise TimeoutError("Music21 parsing timed out")
+
+        # Set a 20-second timeout for music21 parsing
+        old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+        signal.alarm(20)
+        
         try:
             score = converter.parse(abc_string, format='abc')
+            signal.alarm(0) # Disable alarm on success
+            
             pitches = []
             for n in score.recurse().notes:
                 if isinstance(n, m21_note.Note):
@@ -190,12 +203,15 @@ class Tune:
             
             if pitches:
                 return pitches
+        except TimeoutError:
+            logger.warning(f"Music21 parsing timed out for {self.title or 'Untitled'}")
         except Exception as e:
             logger.debug(f"Music21 internal error: {e}")
-            pass
+        finally:
+            signal.alarm(0) # Ensure alarm is disabled
+            signal.signal(signal.SIGALRM, old_handler) # Restore old handler
         
         # Fallback: extract pitches from elements if music21 failed or returned empty
-        # This is more robust for tunes with mixed documentation
         return self._extract_pitches_from_elements()
 
     def _extract_pitches_from_elements(self):
