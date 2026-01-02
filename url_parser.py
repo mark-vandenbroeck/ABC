@@ -3,6 +3,7 @@ import json
 import time
 import signal
 import sys
+import os
 import logging
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
@@ -13,25 +14,36 @@ from database import get_db_connection, DB_PATH
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
 
-# Logging configuration
-LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'parser.log'
-# Configure root logger to capture library logs (like abc_parser)
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)
-
-# 3 MB = 3145728 bytes
-fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
-fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
-root_logger.addHandler(fh)
-
 logger = logging.getLogger('url_parser')
 
 class URLParser:
     def __init__(self, parser_id):
         self.parser_id = parser_id
+        self.setup_logging()
         self.running = True
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+
+    def setup_logging(self):
+        """Configure logging for this specific parser instance"""
+        log_dir = Path(DB_PATH).resolve().parent / 'logs'
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = log_dir / f'parser.{self.parser_id}.log'
+        
+        # Configure root logger to capture library logs (like abc_parser)
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        
+        # Clear existing handlers to avoid duplicates
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        # 3 MB = 3145728 bytes
+        fh = RotatingFileHandler(log_file, maxBytes=3145728, backupCount=4)
+        fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
+        root_logger.addHandler(fh)
+        
+        logger.info(f"Logging initialized for parser {self.parser_id}")
 
     def signal_handler(self, sig, frame):
         logger.info(f"Parser {self.parser_id} shutting down...")
