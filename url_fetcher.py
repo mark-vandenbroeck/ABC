@@ -13,6 +13,7 @@ from bs4 import BeautifulSoup
 from database import get_db_connection, DB_PATH
 import re
 import logging
+import traceback
 from pathlib import Path
 
 from logging.handlers import RotatingFileHandler
@@ -32,6 +33,9 @@ DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
 MAX_LINK_DISTANCE = 4
 
+# Set a global socket timeout as a last-resort safety net
+socket.setdefaulttimeout(30)
+
 class URLFetcher:
     def __init__(self, fetcher_id):
         self.fetcher_id = fetcher_id
@@ -39,6 +43,17 @@ class URLFetcher:
         self.robots_cache = {}
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+        signal.signal(signal.SIGUSR1, self.dump_stack_trace)
+    
+    def dump_stack_trace(self, sig, frame):
+        """Dump stack trace of all threads to the log"""
+        logger.info("SIGUSR1 received: Dumping stack trace")
+        for thread_id, stack in sys._current_frames().items():
+            logger.info(f"\n# ThreadID: {thread_id}")
+            for filename, lineno, name, line in traceback.extract_stack(stack):
+                logger.info(f'File: "{filename}", line {lineno}, in {name}')
+                if line:
+                    logger.info(f"  {line.strip()}")
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
@@ -55,10 +70,16 @@ class URLFetcher:
             robots_url = urljoin(base_url, '/robots.txt')
             rp = RobotFileParser()
             try:
-                rp.set_url(robots_url)
-                rp.read()
+                headers = {'User-Agent': 'WebCrawler/1.0'}
+                # Use requests to get content with a timeout
+                response = requests.get(robots_url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    rp.parse(response.text.splitlines())
+                else:
+                    # If 404 or other error, assume allow_all = True
+                    rp.allow_all = True
             except Exception as e:
-                print(f"Warning: Could not read robots.txt from {robots_url}: {e}")
+                logger.warning(f"Fetcher {self.fetcher_id} - Could not read robots.txt from {robots_url}: {e}")
                 # Allow all if robots.txt can't be read
                 rp.allow_all = True
             self.robots_cache[base_url] = rp
@@ -171,7 +192,8 @@ class URLFetcher:
                 'User-Agent': 'WebCrawler/1.0'
             }
             try:
-                response = requests.get(url, headers=headers, timeout=10, allow_redirects=True)
+                # logger.debug(f"Fetcher {self.fetcher_id} starting requests.get for {url}")
+                response = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
             except Exception as e:
                 # Network error / no response
                 logger.info(f"Fetcher {self.fetcher_id} - {url} - ERROR - {e}")

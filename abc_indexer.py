@@ -151,13 +151,14 @@ class ABCIndexer:
             if all_vectors:
                 try:
                     vectors_array = np.array(all_vectors, dtype=np.float32)
-                    self.vector_index.add_vectors(all_tune_ids, vectors_array)
+                    self.vector_index.add_vectors(all_tune_ids, vectors_array, external_conn=conn)
                     logger.info(f"Added {len(all_vectors)} vectors for {processed_count} tunes to FAISS")
                 except Exception as e:
                     logger.error(f"Error adding vectors to FAISS: {e}")
+                    # If FAISS addition fails, we fail the whole tunebook processing
+                    raise
 
             conn.commit()
-            self.vector_index.save()
             logger.info(f"Indexer {self.indexer_id} processed tunebook {tunebook_id}: {processed_count} tunes")
             return True
             

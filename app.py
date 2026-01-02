@@ -100,6 +100,26 @@ def get_process_info():
             # Try to remove pidfile
             try: os.remove(os.path.join('run', f'fetcher.{fetcher_id}.pid'))
             except: pass
+    else:
+        # Check run/ directory for any fetcher pidfiles we might have missed
+        if os.path.exists('run'):
+            for f in os.listdir('run'):
+                if f.startswith('fetcher.') and f.endswith('.pid'):
+                    try:
+                        parts = f.split('.')
+                        if len(parts) >= 3:
+                            fetcher_id = parts[1]
+                            if fetcher_id not in processes['fetchers']:
+                                pid_from_file = _read_pidfile(os.path.join('run', f))
+                                if pid_from_file:
+                                    try:
+                                        os.kill(pid_from_file, 0)
+                                        processes['fetchers'][fetcher_id] = pid_from_file
+                                        info['fetchers'].append({'id': fetcher_id, 'pid': pid_from_file, 'status': 'running'})
+                                    except OSError:
+                                        try: os.remove(os.path.join('run', f))
+                                        except: pass
+                    except: pass
     
     # Check parsers
     for parser_id, pid in list(processes['parsers'].items()):
@@ -1053,7 +1073,7 @@ def get_stats():
         cursor.execute("SELECT COUNT(*) FROM tunebooks WHERE status = 'indexed'")
         stats['total_indexed_tunebooks'] = cursor.fetchone()[0]
 
-        cursor.execute("SELECT COUNT(*) FROM tunes WHERE intervals IS NULL")
+        cursor.execute("SELECT COUNT(*) FROM tunes WHERE status = 'parsed' AND intervals IS NULL")
         stats['total_pending_index_tunes'] = cursor.fetchone()[0]
 
         try:

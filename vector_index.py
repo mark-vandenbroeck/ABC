@@ -37,23 +37,26 @@ class VectorIndex:
         except Exception as e:
             logger.error(f"Error saving FAISS index: {e}")
 
-    def add_vectors(self, tune_ids, vectors):
+    def add_vectors(self, tune_ids, vectors, external_conn=None):
         """
         Add multiple vectors and their corresponding tune_ids
         vectors: numpy array of shape (N, dimension), float32
         tune_ids: list of N tune IDs
+        external_conn: optional active sqlite3 connection for atomic updates
         """
         if len(tune_ids) == 0:
             return
 
+        conn = external_conn
+        close_conn = False
         try:
             start_count = self.index.ntotal
-            # FAISS requires float32
-            self.index.add(vectors.astype('float32'))
-            end_count = self.index.ntotal
             
-            # Update mapping in SQLite
-            conn = get_db_connection()
+            # 1. Update mapping in SQLite FIRST (within transaction)
+            if conn is None:
+                conn = get_db_connection()
+                close_conn = True
+            
             cursor = conn.cursor()
             
             mapping_data = []
@@ -65,13 +68,27 @@ class VectorIndex:
             cursor.executemany('INSERT OR REPLACE INTO faiss_mapping (faiss_id, tune_id) VALUES (?, ?)', 
                              mapping_data)
             
-            conn.commit()
-            conn.close()
+            # If we opened the connection here, commit it. 
+            # If external_conn was provided, the caller handles commit.
+            if close_conn:
+                conn.commit()
             
+            # 2. Add to FAISS index ONLY if DB update succeeded
+            self.index.add(vectors.astype('float32'))
+            end_count = self.index.ntotal
+            
+            # 3. Persistence
             self.save()
-            logger.info(f"Added {len(tune_ids)} vectors to FAISS index (Total: {end_count})")
+            logger.info(f"Atomic update: added {len(tune_ids)} vectors to FAISS index (Total: {end_count})")
+            
         except Exception as e:
-            logger.error(f"Error adding vectors to FAISS: {e}")
+            logger.error(f"Error in atomic add_vectors: {e}")
+            if close_conn and conn:
+                conn.rollback()
+            raise # Re-raise to let caller know the update failed
+        finally:
+            if close_conn and conn:
+                conn.close()
 
     def search(self, query_vector, k=10):
         """
