@@ -6,6 +6,8 @@ import signal
 import json
 import threading
 import time
+import logging
+import math
 from database import get_db_connection, DB_PATH, init_database
 from log_rotator import RotatingFileWriter
 
@@ -988,68 +990,99 @@ def update_host(host):
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
+# Simple cache for stats
+_stats_cache = {'data': None, 'timestamp': 0}
+_stats_cache_duration = 60 # seconds
+
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
-    """Get crawler statistics"""
+    """Get crawler statistics with simple caching"""
+    global _stats_cache
+    
+    current_time = time.time()
+    if _stats_cache['data'] and (current_time - _stats_cache['timestamp'] < _stats_cache_duration):
+        return jsonify(_stats_cache['data'])
+
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    stats = {}
-    
-    # Total URLs
-    cursor.execute('SELECT COUNT(*) FROM urls')
-    stats['total_urls'] = cursor.fetchone()[0]
-    
-    # URLs by status
-    cursor.execute('''
-        SELECT status, COUNT(*) 
-        FROM urls 
-        GROUP BY status
-    ''')
-    stats['by_status'] = {row[0] or 'new': row[1] for row in cursor.fetchall()}
-    
-    # Total size
-    cursor.execute('SELECT SUM(size_bytes) FROM urls WHERE size_bytes IS NOT NULL')
-    result = cursor.fetchone()[0]
-    stats['total_size_bytes'] = result or 0
-    
-    # MIME types distribution
-    cursor.execute('''
-        SELECT mime_type, COUNT(*) 
-        FROM urls 
-        WHERE mime_type IS NOT NULL AND mime_type != ''
-        GROUP BY mime_type
-        ORDER BY COUNT(*) DESC
-        LIMIT 10
-    ''')
-    stats['top_mime_types'] = {row[0]: row[1] for row in cursor.fetchall()}
-    
-    # New metrics
-    cursor.execute("SELECT COUNT(*) FROM urls WHERE status = 'parsed'")
-    stats['total_parsed'] = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM urls WHERE has_abc = 1")
-    stats['total_with_abc'] = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM tunebooks")
-    stats['total_tunebooks'] = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM tunes")
-    stats['total_tunes'] = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM tunebooks WHERE status = 'indexed'")
-    stats['total_indexed_tunebooks'] = cursor.fetchone()[0]
-
-    cursor.execute("SELECT COUNT(*) FROM tunes WHERE intervals IS NULL")
-    stats['total_pending_index_tunes'] = cursor.fetchone()[0]
-
     try:
-        cursor.execute("SELECT COUNT(*) FROM faiss_mapping")
-        stats['faiss_index_size'] = cursor.fetchone()[0]
-    except sqlite3.OperationalError:
-        stats['faiss_index_size'] = 0
+        stats = {}
+        
+        # Total URLs
+        cursor.execute('SELECT COUNT(*) FROM urls')
+        stats['total_urls'] = cursor.fetchone()[0]
+        
+        # URLs by status
+        cursor.execute('''
+            SELECT status, COUNT(*) 
+            FROM urls 
+            GROUP BY status
+        ''')
+        stats['by_status'] = {row[0] or 'new': row[1] for row in cursor.fetchall()}
+        
+        # Total size
+        cursor.execute('SELECT SUM(size_bytes) FROM urls WHERE size_bytes IS NOT NULL')
+        result = cursor.fetchone()[0]
+        stats['total_size_bytes'] = result or 0
+        
+        # MIME types distribution
+        cursor.execute('''
+            SELECT mime_type, COUNT(*) 
+            FROM urls 
+            WHERE mime_type IS NOT NULL AND mime_type != ''
+            GROUP BY mime_type
+            ORDER BY COUNT(*) DESC
+            LIMIT 10
+        ''')
+        stats['top_mime_types'] = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        # New metrics
+        cursor.execute("SELECT COUNT(*) FROM urls WHERE status = 'parsed'")
+        stats['total_parsed'] = cursor.fetchone()[0]
 
-    conn.close()
+        cursor.execute("SELECT COUNT(*) FROM urls WHERE has_abc = 1")
+        stats['total_with_abc'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM tunebooks")
+        stats['total_tunebooks'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM tunes")
+        stats['total_tunes'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM tunebooks WHERE status = 'indexed'")
+        stats['total_indexed_tunebooks'] = cursor.fetchone()[0]
+
+        cursor.execute("SELECT COUNT(*) FROM tunes WHERE intervals IS NULL")
+        stats['total_pending_index_tunes'] = cursor.fetchone()[0]
+
+        try:
+            cursor.execute("SELECT COUNT(*) FROM faiss_mapping")
+            stats['faiss_index_size'] = cursor.fetchone()[0]
+        except sqlite3.OperationalError:
+            stats['faiss_index_size'] = 0
+
+        # Link Distance vs Status breakdown
+        cursor.execute('''
+            SELECT link_distance, status, COUNT(*) 
+            FROM urls 
+            GROUP BY link_distance, status
+        ''')
+        breakdown = {}
+        for dist, status, count in cursor.fetchall():
+            dist = dist if dist is not None else 0
+            status = status if status else 'new'
+            if dist not in breakdown:
+                breakdown[dist] = {}
+            breakdown[dist][status] = count
+        stats['distance_status_breakdown'] = breakdown
+
+        _stats_cache = {'data': stats, 'timestamp': current_time}
+        return jsonify(stats)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    finally:
+        conn.close()
     
     return jsonify(stats)
 
@@ -1057,5 +1090,4 @@ if __name__ == '__main__':
     # Ensure database and schema are initialized/up-to-date
     init_database()
     
-    app.run(debug=False, host='0.0.0.0', port=5500)
-
+    app.run(debug=False, host='0.0.0.0', port=5500, threaded=True)

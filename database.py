@@ -7,7 +7,7 @@ DB_PATH = 'crawler.db'
 
 def init_database():
     """Initialize the database with required tables"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=120.0)
     cursor = conn.cursor()
     
     # URLs table
@@ -21,7 +21,8 @@ def init_database():
             status TEXT DEFAULT '',
             mime_type TEXT,
             document BLOB,
-            link_distance INTEGER DEFAULT 0
+            link_distance INTEGER DEFAULT 0,
+            url_extension TEXT
         )
     ''')
     
@@ -140,27 +141,17 @@ def init_database():
         except Exception:
             pass
 
-    # Backfill host values for any existing URLs that still have host NULL/empty
-    try:
-        cursor.execute("SELECT COUNT(*) FROM urls WHERE host IS NULL OR host = ''")
-        missing_hosts = cursor.fetchone()[0]
-        if missing_hosts > 0:
-            print(f"Backfilling host column for {missing_hosts} urls...")
-            cursor.execute("SELECT id, url FROM urls WHERE host IS NULL OR host = ''")
-            rows_to_update = cursor.fetchall()
-            for rid, rurl in rows_to_update:
-                try:
-                    h = urlparse(rurl).hostname
-                    if h:
-                        cursor.execute('UPDATE urls SET host = ? WHERE id = ?', (h, rid))
-                except Exception:
-                    continue
-    except Exception:
-        pass
+    # Backfill removed from startup to prevent locking. 
+    # Use scripts/maintenance.py if needed.
 
     # Add an index on urls.host for faster joins and filtering
     try:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_host ON urls(host)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_status ON urls(status)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_status_created ON urls(status, created_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_dispatched_at ON urls(dispatched_at)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_url_extension ON urls(url_extension)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_urls_purger_cleanup ON urls(status, has_abc, document)')
     except Exception:
         pass
 
@@ -251,9 +242,11 @@ def init_database():
 
 def get_db_connection():
     """Get a database connection with extended timeout and WAL mode enabled"""
-    conn = sqlite3.connect(DB_PATH, timeout=60.0)
+    conn = sqlite3.connect(DB_PATH, timeout=120.0)
     # Enable Write-Ahead Logging for better concurrency
     conn.execute('PRAGMA journal_mode=WAL')
+    # Use NORMAL synchronous mode for better performance while maintaining safety in WAL
+    conn.execute('PRAGMA synchronous=NORMAL')
     return conn
 
 if __name__ == '__main__':

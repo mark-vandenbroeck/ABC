@@ -13,8 +13,8 @@ else
 fi
 
 echo
-echo "--- Processes (app/dispatcher/fetcher) ---"
-ps aux | egrep 'url_dispatcher.py|app.py|abc_app.py|url_fetcher.py|fetcher.py' | egrep -v 'grep' || echo "No matching processes"
+echo "--- Processes (app/dispatcher/workers) ---"
+ps aux | egrep 'url_dispatcher.py|app.py|abc_app.py|url_fetcher.py|url_parser.py|abc_indexer.py|url_purger.py' | egrep -v 'grep' || echo "No matching processes"
 
 echo
 [ -f run/app.pid ] && echo "app.pid (Management): $(cat run/app.pid)" || true

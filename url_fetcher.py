@@ -138,7 +138,14 @@ class URLFetcher:
                     host = None
 
                 if host:
-                    cursor.execute('INSERT OR IGNORE INTO urls (url, host, link_distance) VALUES (?, ?, ?)', (url, host, new_distance))
+                    # Extract extension for optimized purging
+                    ext = ''
+                    try:
+                        p = Path(urlparse(url).path)
+                        ext = p.suffix[1:].lower() if p.suffix else ''
+                    except: pass
+                    
+                    cursor.execute('INSERT OR IGNORE INTO urls (url, host, link_distance, url_extension) VALUES (?, ?, ?, ?)', (url, host, new_distance, ext))
                 else:
                     cursor.execute('INSERT OR IGNORE INTO urls (url, link_distance) VALUES (?, ?)', (url, new_distance))
 
@@ -233,18 +240,48 @@ class URLFetcher:
             print(f"Error fetching {url}: {e}")
             return {'error_type': 'other', 'error_message': str(e)}
     
+    def _submit_result(self, result_data):
+        """Submit result to dispatcher using a new connection"""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(15.0)
+            sock.connect((DISPATCHER_HOST, DISPATCHER_PORT))
+            
+            # Prepare payload
+            if 'action' not in result_data:
+                # It's a raw result from fetch_url
+                document_b64 = base64.b64encode(result_data['document']).decode('utf-8') if result_data.get('document') else ''
+                payload = {
+                    'action': 'submit_result',
+                    'url_id': result_data['url_id'],
+                    'size_bytes': result_data.get('size_bytes', 0),
+                    'mime_type': result_data.get('mime_type', ''),
+                    'document': document_b64,
+                    'http_status': result_data.get('http_status'),
+                    'error_type': result_data.get('error_type')
+                }
+            else:
+                payload = result_data
+
+            sock.send(json.dumps(payload).encode('utf-8'))
+            sock.close()
+        except Exception as e:
+            print(f"Error submitting result: {e}")
+
     def communicate_with_dispatcher(self):
         """Communicate with dispatcher to get URLs and submit results"""
         try:
+            # 1. Get URL
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(15.0)
             sock.connect((DISPATCHER_HOST, DISPATCHER_PORT))
             
-            # Request a URL
             request = {'action': 'get_url'}
             sock.send(json.dumps(request).encode('utf-8'))
             
-            # Receive response
             response_data = sock.recv(4096).decode('utf-8')
+            sock.close() # Close immediately
+            
             response = json.loads(response_data)
             
             if response['status'] == 'ok':
@@ -254,59 +291,34 @@ class URLFetcher:
                 
                 print(f"Fetcher {self.fetcher_id} fetching: {url} (dist: {link_distance})")
                 
-                # Fetch the URL
+                # 2. Fetch
                 result = self.fetch_url(url_id, url, link_distance)
                 
+                # 3. Submit Result via NEW connection
                 if result:
-                    # If fetch_url returned an error_type, send it so dispatcher can act (e.g., disable host)
-                    if 'error_type' in result:
-                        submit_request = {
-                            'action': 'submit_result',
-                            'url_id': url_id,
-                            'size_bytes': 0,
-                            'mime_type': '',
-                            'document': '',
-                            'http_status': None,
-                            'error_type': result.get('error_type')
-                        }
-                        sock.send(json.dumps(submit_request).encode('utf-8'))
-                        try:
-                            sock.recv(1024)
-                        except:
-                            pass
-                        print(f"Fetcher {self.fetcher_id} error for {url}: {result.get('error_type')}")
-                    else:
-                        # Submit result (encode binary as base64 for JSON)
-                        document_b64 = base64.b64encode(result['document']).decode('utf-8') if result['document'] else ''
-                        submit_request = {
-                            'action': 'submit_result',
-                            'url_id': result['url_id'],
-                            'size_bytes': result['size_bytes'],
-                            'mime_type': result['mime_type'],
-                            'document': document_b64,
-                            'http_status': result.get('http_status')
-                        }
-                        
-                        sock.send(json.dumps(submit_request).encode('utf-8'))
-                        submit_response = sock.recv(1024).decode('utf-8')
-                        print(f"Fetcher {self.fetcher_id} completed: {url}")
+                    self._submit_result(result)
                 else:
-                    # Mark as fetched even if failed (to avoid infinite retries)
-                    submit_request = {
+                    # Submit failure/empty to ensure it's marked processed
+                    self._submit_result({
                         'action': 'submit_result',
                         'url_id': url_id,
                         'size_bytes': 0,
                         'mime_type': '',
-                        'document': ''  # Empty base64 string
-                    }
-                    sock.send(json.dumps(submit_request).encode('utf-8'))
-                    sock.recv(1024)
-            
-            sock.close()
-            return response['status'] == 'ok'
-            
+                        'document': '',
+                        'http_status': None
+                    })
+                return True
+
+            elif response['status'] == 'no_urls':
+                time.sleep(2)
+                return True
+            else:
+                time.sleep(2)
+                return False
+                
         except Exception as e:
             print(f"Fetcher {self.fetcher_id} communication error: {e}")
+            time.sleep(5)
             return False
     
     def run(self):

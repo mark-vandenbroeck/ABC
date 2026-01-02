@@ -37,28 +37,46 @@ class URLPurger:
         
         try:
             # 1. Verwijder URLs met een filename extension in refused_extensions
-            # We join urls with refused_extensions based on the extension part of the URL
-            # This is a bit complex in SQL because we need to extract the extension.
-            # For simplicity and correctness, we'll fetch refused extensions and do it in batches or filtered queries.
-            
             cursor.execute('SELECT extension FROM refused_extensions')
             refused_exts = [row[0] for row in cursor.fetchall()]
             
-            for ext in refused_exts:
-                # Using a broad match to ensure we catch the extension anywhere it appears as a suffix
-                # This covers .ext, .ext/, .ext?query, .ext#fragment etc.
-                pattern = f'%.{ext}%'
-                cursor.execute('DELETE FROM urls WHERE url LIKE ?', (pattern,))
-                if cursor.rowcount > 0:
-                    logger.info(f"Purger: Deleted {cursor.rowcount} URLs containing .{ext}")
+            if refused_exts:
+                # Use the new url_extension column for O(1) matching instead of LIKE scans
+                placeholders = ",".join(["?" for _ in refused_exts])
+                
+                # Delete in batches to avoid locking the entire table
+                while True:
+                    cursor.execute(f'''
+                        DELETE FROM urls 
+                        WHERE id IN (
+                            SELECT id FROM urls 
+                            WHERE url_extension IN ({placeholders})
+                            LIMIT 500
+                        )
+                    ''', refused_exts)
+                    
+                    if cursor.rowcount == 0:
+                        break
+                        
+                    logger.info(f"Purger: Deleted batch of {cursor.rowcount} URLs with refused extensions")
+                    conn.commit()
+                    time.sleep(0.1)
 
             # 2. Verwijder alle URLs waarvan de host gedisabled is met reden 'dns'
-            cursor.execute('''
-                DELETE FROM urls 
-                WHERE host IN (SELECT host FROM hosts WHERE disabled = 1 AND disabled_reason = 'dns')
-            ''')
-            if cursor.rowcount > 0:
-                logger.info(f"Purger: Deleted {cursor.rowcount} URLs from 'dns' disabled hosts")
+            while True:
+                cursor.execute('''
+                    DELETE FROM urls 
+                    WHERE id IN (
+                        SELECT id FROM urls 
+                        WHERE host IN (SELECT host FROM hosts WHERE disabled = 1 AND disabled_reason = 'dns')
+                        LIMIT 500
+                    )
+                ''')
+                if cursor.rowcount == 0:
+                    break
+                logger.info(f"Purger: Deleted batch of {cursor.rowcount} URLs from 'dns' disabled hosts")
+                conn.commit()
+                time.sleep(0.1)
 
             # 3. Verwijder alle hosts die gedisabled zijn met reden 'dns'
             cursor.execute('''
@@ -67,20 +85,33 @@ class URLPurger:
             ''')
             if cursor.rowcount > 0:
                 logger.info(f"Purger: Deleted {cursor.rowcount} 'dns' disabled hosts")
+                conn.commit()
+                time.sleep(0.1)
 
-            # 4. Erase document content for parsed URLs without tunes
-            cursor.execute('''
-                UPDATE urls 
-                SET document = 'erased', size_bytes = 0 
-                WHERE status = 'parsed' AND has_abc = 0 AND document != 'erased'
-            ''')
-            if cursor.rowcount > 0:
-                logger.info(f"Purger: Erased document content for {cursor.rowcount} non-ABC parsed URLs")
+            # 4. Erase document content for parsed URLs without tunes in small batches
+            while True:
+                # Use the optimized idx_urls_purger_cleanup index
+                cursor.execute('''
+                    UPDATE urls 
+                    SET document = 'erased', size_bytes = 0 
+                    WHERE id IN (
+                        SELECT id FROM urls 
+                        WHERE status = 'parsed' AND has_abc = 0 AND document != 'erased'
+                        LIMIT 200
+                    )
+                ''')
+                if cursor.rowcount == 0:
+                    break
+                logger.info(f"Purger: Erased document content for batch of {cursor.rowcount} non-ABC parsed URLs")
+                conn.commit()
+                time.sleep(0.2) # Allow others access to DB
 
-            conn.commit()
         except Exception as e:
             logger.error(f"Purger error: {e}")
-            conn.rollback()
+            try:
+                conn.rollback()
+            except:
+                pass
         finally:
             conn.close()
 

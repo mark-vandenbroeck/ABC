@@ -9,6 +9,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import numpy as np
 from database import get_db_connection, DB_PATH
+from vector_index import VectorIndex
 
 # Dispatcher configuration
 DISPATCHER_HOST = 'localhost'
@@ -44,19 +45,6 @@ def normalize_intervals(intervals, length=None):
     
     # Return full sequence as list
     return [np.clip(val, -MAX_INTERVAL, MAX_INTERVAL) for val in intervals]
-
-class ABCIndexer:
-    def __init__(self, indexer_id):
-        self.indexer_id = indexer_id
-        self.running = True
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTERM, self.signal_handler)
-        logger.info(f"Indexer {self.indexer_id} started (PID: {os.getpid()})")
-
-    def signal_handler(self, sig, frame):
-        logger.info(f"Indexer {self.indexer_id} shutting down...")
-        self.running = False
-        sys.exit(0)
 
 def calculate_intervals(pitches_str, allow_repeats=False):
     """
@@ -108,6 +96,7 @@ class ABCIndexer:
         self.running = True
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+        self.vector_index = VectorIndex()
         logger.info(f"Indexer {self.indexer_id} started (PID: {os.getpid()})")
 
     def signal_handler(self, sig, frame):
@@ -131,19 +120,44 @@ class ABCIndexer:
             tunes = cursor.fetchall()
             processed_count = 0
             
+            all_vectors = []
+            all_tune_ids = []
+
             for tune_id, pitches in tunes:
-                intervals = calculate_intervals(pitches)
+                intervals_str = calculate_intervals(pitches)
                 
                 # Update the intervals column
                 cursor.execute('''
                     UPDATE tunes 
                     SET intervals = ? 
                     WHERE id = ?
-                ''', (intervals, tune_id))
+                ''', (intervals_str, tune_id))
                 
+                if intervals_str:
+                    # Convert back to list of floats for vector generation
+                    intervals = [float(x) for x in intervals_str.split(', ')]
+                    
+                    # Generate windows
+                    windows = self.vector_index.generate_windows(intervals)
+                    
+                    # Accumulate vectors and tune_ids
+                    for window in windows:
+                        all_vectors.append(window)
+                        all_tune_ids.append(tune_id)
+
                 processed_count += 1
             
+            # Batch add to FAISS index
+            if all_vectors:
+                try:
+                    vectors_array = np.array(all_vectors, dtype=np.float32)
+                    self.vector_index.add_vectors(all_tune_ids, vectors_array)
+                    logger.info(f"Added {len(all_vectors)} vectors for {processed_count} tunes to FAISS")
+                except Exception as e:
+                    logger.error(f"Error adding vectors to FAISS: {e}")
+
             conn.commit()
+            self.vector_index.save()
             logger.info(f"Indexer {self.indexer_id} processed tunebook {tunebook_id}: {processed_count} tunes")
             return True
             

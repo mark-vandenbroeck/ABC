@@ -16,6 +16,19 @@ import threading
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
 
+import threading
+import sys
+import traceback
+
+def dump_stack_trace(sig, frame):
+    print("\n--- STACK TRACE ---")
+    message = "\n".join(traceback.format_stack(frame))
+    print(message)
+    print("-------------------\n")
+
+import signal
+signal.signal(signal.SIGUSR1, dump_stack_trace)
+
 class URLDispatcher:
     def __init__(self):
         self.running = True
@@ -75,29 +88,58 @@ class URLDispatcher:
                 if not log_path.exists():
                     time.sleep(interval_seconds)
                     continue
+
+                # Check if file rotated (size < current pos)
+                try:
+                    current_size = log_path.stat().st_size
+                    if current_size < self._log_pos:
+                        self._log_pos = 0
+                except:
+                    pass
+
                 with log_path.open('r', encoding='utf-8', errors='replace') as fh:
                     fh.seek(self._log_pos)
                     data = fh.read()
                     self._log_pos = fh.tell()
+                
                 if not data:
                     time.sleep(interval_seconds)
                     continue
-                for m in pattern.finditer(data):
-                    host = m.group(1)
+                
+                matches = list(pattern.finditer(data))
+                if matches:
                     try:
-                        conn = get_db_connection(); cur = conn.cursor()
-                        cur.execute('INSERT OR IGNORE INTO hosts (host, last_access, last_http_status, downloads, disabled, disabled_reason, disabled_at) VALUES (?, NULL, NULL, 0, 1, ?, CURRENT_TIMESTAMP)', (host, 'dns'))
-                        cur.execute('UPDATE hosts SET disabled = 1, disabled_reason = ?, disabled_at = CURRENT_TIMESTAMP WHERE host = ?', ('dns', host))
-                        conn.commit(); conn.close()
-                        print(f"Log scanner: marked host {host} disabled (dns)")
+                        conn = get_db_connection()
+                        cur = conn.cursor()
+                        count = 0
+                        batch_size = 50
+                        
+                        for i, m in enumerate(matches):
+                            host = m.group(1)
+                            try:
+                                cur.execute('INSERT OR IGNORE INTO hosts (host, last_access, last_http_status, downloads, disabled, disabled_reason, disabled_at) VALUES (?, NULL, NULL, 0, 1, ?, CURRENT_TIMESTAMP)', (host, 'dns'))
+                                cur.execute('UPDATE hosts SET disabled = 1, disabled_reason = ?, disabled_at = CURRENT_TIMESTAMP WHERE host = ?', ('dns', host))
+                                count += 1
+                                
+                                # Commit in batches to release lock frequently
+                                if count % batch_size == 0:
+                                    conn.commit()
+                            except Exception:
+                                pass
+                                
+                        conn.commit()
+                        conn.close()
+                        if count > 0:
+                            print(f"Log scanner: marked {count} hosts disabled (dns)")
                     except Exception as e:
-                        print(f"Log scanner warning: could not update host {host}: {e}")
-                time.sleep(interval_seconds)
+                        print(f"Log scanner error during batch update: {e}")
+                
+                time.sleep(300) # Increased interval to 5 minutes to reduce contention
             except Exception as e:
                 print(f"Log scanner error: {e}")
                 time.sleep(interval_seconds)
 
-    def get_next_url(self, batch_size=1000, dispatch_timeout_seconds=30, host_cooldown_seconds=10):
+    def get_next_url(self, batch_size=100, dispatch_timeout_seconds=300, host_cooldown_seconds=30):
         """Get the next URL to process (oldest created, not yet fetched, or dispatched but timed out),
         using an SQL filter that joins `hosts` so we exclude URLs whose host has been accessed within
         the cooldown window.
@@ -122,18 +164,19 @@ class URLDispatcher:
             conn.execute('BEGIN IMMEDIATE')
 
             # Fetch a batch of candidate URLs ordered by created_at
-            # Fetch a batch of candidate URLs ordered by created_at, strictly filtering by host status
+            # Optimization: Focus on status = '' to avoid MULTI-INDEX OR and temp B-tree sort.
+            # We already verified status is never NULL.
             cursor.execute('''
                 SELECT u.id, u.url, u.host, COALESCE(u.link_distance, 0) as link_distance
                 FROM urls u
                 LEFT JOIN hosts h ON u.host = h.host
-                WHERE ((u.status = '' OR u.status IS NULL) OR (u.status = 'dispatched' AND (u.dispatched_at IS NULL OR u.dispatched_at <= datetime('now', ?))))
+                WHERE u.status = ''
                   AND (u.retries IS NULL OR u.retries < 3)
                   AND (h.disabled IS NULL OR h.disabled = 0)
                   AND (h.last_access IS NULL OR h.last_access <= datetime('now', ?))
                 ORDER BY u.created_at ASC
                 LIMIT ?
-            ''', (timeout_param, cooldown_param, batch_size))
+            ''', (cooldown_param, batch_size))
 
             candidates = cursor.fetchall()
             if not candidates:
@@ -143,20 +186,13 @@ class URLDispatcher:
             for url_id, url, host, dist in candidates:
                 # Try to atomically claim this URL only if the host is allowed
                 try:
+                    # Try to atomically claim this URL. Since we are in BEGIN IMMEDIATE, 
+                    # we only need to verify status hasn't changed.
                     cursor.execute('''
                         UPDATE urls
                         SET status = 'dispatched', dispatched_at = CURRENT_TIMESTAMP
-                        WHERE id = ?
-                          AND ((status = '' OR status IS NULL) OR (status = 'dispatched' AND (dispatched_at IS NULL OR dispatched_at <= datetime('now', ?))))
-                          AND (
-                            (SELECT last_access FROM hosts WHERE host = urls.host) IS NULL
-                            OR (SELECT last_access FROM hosts WHERE host = urls.host) <= datetime('now', ?)
-                          )
-                          AND (
-                            (SELECT disabled FROM hosts WHERE host = urls.host) IS NULL
-                            OR (SELECT disabled FROM hosts WHERE host = urls.host) = 0
-                          )
-                    ''', (url_id, timeout_param, cooldown_param))
+                        WHERE id = ? AND status = ''
+                    ''', (url_id,))
 
                     if cursor.rowcount == 0:
                         # Could be raced or host not allowed; try next candidate
@@ -342,6 +378,7 @@ class URLDispatcher:
 
     def handle_client_request(self, client_socket, address):
         """Handle a request from a fetcher or parser"""
+        request = None
         try:
             # Receive request (read until we can parse complete JSON or timeout)
             client_socket.settimeout(5.0)
@@ -370,12 +407,14 @@ class URLDispatcher:
                         raise Exception('Incomplete request data from client')
             client_socket.settimeout(None)
             
-            # Debug log
-            # print(f"Received request from {address}: {request.get('action')}")
-            
+            if request is None:
+                print(f"Warning: No valid JSON request received from {address}")
+                return
+
             action = request.get('action')
             
             if action == 'get_url':
+                print("DEBUG: Client requested get_url")
                 # --- FETCHER: Request URL ---
                 url_data = self.get_next_url()
                 
@@ -390,44 +429,9 @@ class URLDispatcher:
                 
                 client_socket.send(json.dumps(response).encode('utf-8'))
 
-                # If we sent a URL, ensure the host exists
-                if url_data:
-                    try:
-                        host = self._get_host(url_data['url'])
-                        conn = get_db_connection()
-                        cur = conn.cursor()
-                        cur.execute('INSERT OR IGNORE INTO hosts (host, last_access, last_http_status, downloads) VALUES (?, NULL, NULL, 0)', (host,))
-                        conn.commit()
-                        conn.close()
-                    except Exception as e:
-                        print(f"Warning: could not ensure host record for {url_data.get('url')}: {e}")
-
-                    # Expect the fetcher to send a submit_result on the same socket.
-                    try:
-                        request2 = None
-                        client_socket.settimeout(5.0)
-                        chunks = []
-                        while True:
-                            chunk = client_socket.recv(4096)
-                            if not chunk:
-                                break
-                            chunks.append(chunk)
-                            try:
-                                data2 = b''.join(chunks).decode('utf-8')
-                                request2 = json.loads(data2)
-                                break
-                            except json.JSONDecodeError:
-                                continue
-                        client_socket.settimeout(None)
-                        
-                        if request2 and request2.get('action') == 'submit_result':
-                            self._handle_submit_result(request2, url_data, client_socket)
-                            
-                    except socket.timeout:
-                        print('Timed out waiting for submit_result from fetcher')
-                        self._handle_fetcher_timeout(url_data)
-                    except Exception as e:
-                        print(f"Error handling fetcher result: {e}")
+                # We do NOT wait for the result here anymore. 
+                # The fetcher will reconnect to submit the result.
+                return
 
             elif action == 'submit_result':
                 # --- FETCHER: Submit Result (Standalone) ---

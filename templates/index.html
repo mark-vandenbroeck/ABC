@@ -99,6 +99,49 @@
             animation: fadeIn 0.4s ease-out;
         }
 
+        .stats-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            overflow: hidden;
+            font-size: 0.85rem;
+        }
+
+        .stats-table th,
+        .stats-table td {
+            border: 1px solid var(--border);
+            padding: 10px 12px;
+            text-align: right;
+        }
+
+        .stats-table th {
+            background: var(--bg);
+            color: var(--text-dim);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            letter-spacing: 0.5px;
+        }
+
+        .stats-table .row-label {
+            text-align: left;
+            font-weight: 500;
+            background: var(--bg);
+            width: 120px;
+        }
+
+        .stats-table .total-cell {
+            font-weight: 700;
+            color: var(--primary);
+            background: #f8fafc;
+        }
+
+        .stats-table tr:hover td {
+            background: #f8fafc;
+        }
+
         /* Tabs */
         .tabs {
             display: flex;
@@ -557,6 +600,13 @@
         <div id="statistics" class="section tab-content">
             <h2>Statistics</h2>
             <div class="stats-grid" id="stats-grid"></div>
+
+            <div class="stats-section">
+                <h3>URL Status per Link Distance</h3>
+                <div id="distance-status-container" style="overflow-x: auto; margin-top: 20px;">
+                    <!-- Table will be injected here -->
+                </div>
+            </div>
         </div>
 
 
@@ -739,6 +789,8 @@
                     <option value="indexer_out.log">Indexer (Stdout)</option>
                     <option value="purger_error.log">Purger (Error)</option>
                 </select>
+                <button onclick="startLogStream()">Reconnect</button>
+                </select>
                 <button class="button" onclick="clearLogs()">Clear Screen</button>
                 <label style="margin:0; display:flex; align-items:center; gap:5px; font-size:0.85rem;">
                     <input type="checkbox" id="auto-scroll-check" checked> Auto-scroll
@@ -756,143 +808,145 @@
         let currentPage = 0;
         const pageSize = 50;
 
-        // Load initial data
-        window.onload = function () {
+        // Global state
+        let logEventSource = null;
+        let reconnectTimer = null;
+
+        // Global functions
+        window.startLogStream = function () {
+            if (logEventSource) {
+                logEventSource.close();
+                logEventSource = null;
+            }
+
+            if (reconnectTimer) {
+                clearTimeout(reconnectTimer);
+                reconnectTimer = null;
+            }
+
+            const select = document.getElementById('log-file-select');
+            if (!select) return;
+            const filename = select.value;
+            const statusSpan = document.getElementById('log-status');
+            const logDisplay = document.getElementById('log-display');
+
+            if (statusSpan) {
+                statusSpan.textContent = 'Connecting...';
+                statusSpan.className = 'status starting';
+            }
+
+            // Add timestamp to prevent caching
+            const ts = new Date().getTime();
+            logEventSource = new EventSource(`/api/logs/stream/${filename}?t=${ts}`);
+
+            logEventSource.onmessage = function (event) {
+                const line = JSON.parse(event.data);
+                const lineElement = document.createElement('div');
+                lineElement.className = 'log-line';
+
+                const lowerLine = line.toLowerCase();
+                if (lowerLine.includes('error')) lineElement.classList.add('error');
+                else if (lowerLine.includes('warning') || lowerLine.includes('warn')) lineElement.classList.add('warn');
+                else if (lowerLine.includes('info')) lineElement.classList.add('info');
+
+                lineElement.textContent = line;
+                logDisplay.appendChild(lineElement);
+
+                if (logDisplay.childNodes.length > 1000) {
+                    logDisplay.removeChild(logDisplay.firstChild);
+                }
+
+                if (document.getElementById('auto-scroll-check').checked) {
+                    logDisplay.scrollTop = logDisplay.scrollHeight;
+                }
+            };
+
+            logEventSource.onopen = function () {
+                if (statusSpan) {
+                    statusSpan.textContent = 'Streaming';
+                    statusSpan.className = 'status running';
+                }
+            };
+
+            logEventSource.onerror = function () {
+                if (statusSpan) {
+                    statusSpan.textContent = 'Reconnecting...';
+                    statusSpan.className = 'status stopped';
+                }
+                if (logEventSource) {
+                    logEventSource.close();
+                    logEventSource = null;
+                }
+                reconnectTimer = setTimeout(window.startLogStream, 2000);
+            };
+        };
+
+        window.stopLogStream = function () {
+            if (logEventSource) {
+                logEventSource.close();
+                logEventSource = null;
+                const statusSpan = document.getElementById('log-status');
+                if (statusSpan) {
+                    statusSpan.textContent = 'Disconnected';
+                    statusSpan.className = 'status stopped';
+                }
+            }
+        };
+
+        window.switchTab = function (name, save = true) {
+            const tabs = document.querySelectorAll('.tab');
+            const contents = document.querySelectorAll('.tab-content');
+
+            tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+            contents.forEach(c => c.classList.toggle('active', c.id === name));
+
+            if (save) localStorage.setItem('activeTab', name);
+
+            if (name === 'logs') {
+                window.startLogStream();
+            } else {
+                window.stopLogStream();
+            }
+        };
+
+        // Initialize on load
+        window.addEventListener('load', function () {
             loadProcesses();
             loadUrls();
             loadHosts();
             loadMimeTypes();
             loadRefusedExtensions();
             loadStats();
+
             setInterval(loadProcesses, 2000);
             setInterval(loadUrls, 5000);
             setInterval(loadHosts, 5000);
-            setInterval(loadStats, 5000);
+            setInterval(loadStats, 15000);
 
             // Refused extensions handlers
             const addRefBtn = document.getElementById('add-refused-ext');
             if (addRefBtn) addRefBtn.addEventListener('click', addRefusedExtension);
-            const extInput = document.getElementById('refused-ext-input');
-            const reasonInput = document.getElementById('refused-ext-reason');
-            if (extInput) extInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRefusedExtension(); });
-            if (reasonInput) reasonInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRefusedExtension(); });
 
-            const tabs = document.querySelectorAll('.tab');
-            let logEventSource = null;
-            function switchTab(name, save = true) {
-                tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-                document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === name));
-                if (save) localStorage.setItem('activeTab', name);
-
-                // Live Log logic: only connect if tab is active
-                if (name === 'logs') {
-                    startLogStream();
-                } else {
-                    stopLogStream();
-                }
-            }
-
-            function startLogStream() {
-                if (logEventSource) return;
-                const filename = document.getElementById('log-file-select').value;
-                const statusSpan = document.getElementById('log-status');
-                const logDisplay = document.getElementById('log-display');
-
-                statusSpan.textContent = 'Connecting...';
-                statusSpan.className = 'status starting';
-
-                logEventSource = new EventSource(`/api/logs/stream/${filename}`);
-
-                logEventSource.onmessage = function (event) {
-                    const line = JSON.parse(event.data);
-                    const lineElement = document.createElement('div');
-                    lineElement.className = 'log-line';
-
-                    // Simple highlighting
-                    const lowerLine = line.toLowerCase();
-                    if (lowerLine.includes('error')) lineElement.classList.add('error');
-                    else if (lowerLine.includes('warning') || lowerLine.includes('warn')) lineElement.classList.add('warn');
-                    else if (lowerLine.includes('info')) lineElement.classList.add('info');
-
-                    lineElement.textContent = line;
-                    logDisplay.appendChild(lineElement);
-
-                    // Limit lines to avoid memory issues (last 1000 lines)
-                    if (logDisplay.childNodes.length > 1000) {
-                        logDisplay.removeChild(logDisplay.firstChild);
-                    }
-
-                    if (document.getElementById('auto-scroll-check').checked) {
-                        logDisplay.scrollTop = logDisplay.scrollHeight;
-                    }
-                };
-
-                logEventSource.onopen = function () {
-                    statusSpan.textContent = 'Streaming';
-                    statusSpan.className = 'status running';
-                };
-
-                logEventSource.onerror = function () {
-                    statusSpan.textContent = 'Error / Reconnecting';
-                    statusSpan.className = 'status stopped';
-                };
-            }
-
-            function stopLogStream() {
-                if (logEventSource) {
-                    logEventSource.close();
-                    logEventSource = null;
-                    const statusSpan = document.getElementById('log-status');
-                    if (statusSpan) {
-                        statusSpan.textContent = 'Disconnected';
-                        statusSpan.className = 'status stopped';
-                    }
-                }
-            }
-
-            // Global functions for the Log Viewer tab
-            window.switchLogFile = function () {
-                stopLogStream();
-                document.getElementById('log-display').innerHTML = '';
-                startLogStream();
-            };
-
-            window.clearLogs = function () {
-                document.getElementById('log-display').innerHTML = '';
-            };
-
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => switchTab(tab.dataset.tab));
-                tab.addEventListener('keydown', (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(tab.dataset.tab); }
-                });
+            // Tab listeners
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.addEventListener('click', () => window.switchTab(tab.dataset.tab));
             });
 
             const initial = localStorage.getItem('activeTab') || 'process-control';
-            // Restore URL/MIME filters if present
-            const savedUrlFilter = localStorage.getItem('urlFilter');
-            const savedMimeFilter = localStorage.getItem('mimeFilter');
-            if (savedUrlFilter && document.getElementById('url-filter')) document.getElementById('url-filter').value = savedUrlFilter;
-            if (savedMimeFilter && document.getElementById('mime-filter')) document.getElementById('mime-filter').value = savedMimeFilter;
-            switchTab(initial, false);
+            window.switchTab(initial, false);
 
-            // Restore compact view preference
+            // Compact view
             const compactToggle = document.getElementById('compact-toggle');
-            const compactPref = localStorage.getItem('compactView') === '1';
             if (compactToggle) {
+                const compactPref = localStorage.getItem('compactView') === '1';
                 compactToggle.checked = compactPref;
                 if (compactPref) document.body.classList.add('compact');
                 compactToggle.addEventListener('change', (e) => {
-                    if (e.target.checked) {
-                        document.body.classList.add('compact');
-                        localStorage.setItem('compactView', '1');
-                    } else {
-                        document.body.classList.remove('compact');
-                        localStorage.removeItem('compactView');
-                    }
+                    document.body.classList.toggle('compact', e.target.checked);
+                    localStorage.setItem('compactView', e.target.checked ? '1' : '0');
                 });
             }
-        };
+        });
 
         async function loadProcesses() {
             try {
@@ -1619,6 +1673,54 @@
                         <div class="stat-value">${formatNumber(data.total_pending_index_tunes || 0)}</div>
                     </div>
                 `;
+
+                // Render contingency table
+                const breakdown = data.distance_status_breakdown || {};
+                const container = document.getElementById('distance-status-container');
+
+                // Get unique distances and statuses
+                const distances = Object.keys(breakdown).map(Number).sort((a, b) => a - b);
+                const statusesSet = new Set();
+                distances.forEach(d => {
+                    Object.keys(breakdown[d]).forEach(s => statusesSet.add(s));
+                });
+                const statuses = Array.from(statusesSet).sort();
+
+                if (distances.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-dim); font-style: italic; padding: 10px;">Geen data beschikbaar.</p>';
+                    return;
+                }
+
+                let html = '<table class="stats-table"><thead><tr><th class="row-label">Distance</th>';
+                statuses.forEach(s => html += `<th>${s}</th>`);
+                html += '<th class="total-cell">Total</th></tr></thead><tbody>';
+
+                const colTotals = {};
+                statuses.forEach(s => colTotals[s] = 0);
+                let grandTotal = 0;
+
+                distances.forEach(d => {
+                    let rowTotal = 0;
+                    html += `<tr><td class="row-label">Distance ${d}</td>`;
+                    statuses.forEach(s => {
+                        const count = breakdown[d][s] || 0;
+                        html += `<td>${formatNumber(count)}</td>`;
+                        rowTotal += count;
+                        colTotals[s] += count;
+                    });
+                    html += `<td class="total-cell">${formatNumber(rowTotal)}</td></tr>`;
+                    grandTotal += rowTotal;
+                });
+
+                // Footer row for column totals
+                html += '</tbody><tfoot><tr><td class="row-label total-cell">Total</td>';
+                statuses.forEach(s => {
+                    html += `<td class="total-cell">${formatNumber(colTotals[s])}</td>`;
+                });
+                html += `<td class="total-cell">${formatNumber(grandTotal)}</td></tr></tfoot></table>`;
+
+                container.innerHTML = html;
+
             } catch (error) {
                 console.error('Error loading stats:', error);
             }
