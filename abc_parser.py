@@ -377,18 +377,33 @@ class Tunebook:
             # at the start of a line (even if they follow a <br> or are inside a <div>) are found.
             content = re.sub(r'<[^>]+>', '\n', content)
             
-            # Simple check if it looks like ABC
-            if "X:" not in content:
+            # Stricter check: X: must be at the start of a line and followed by digits.
+            # This filters out many false positives in minified JS/CSS or news text.
+            if not re.search(r'(?m)^X:\s*\d+', content):
                 self.success = False
                 return
 
+            # Secondary check: character distribution. If the page doesn't look like an ABC book, skip it.
+            # Real ABC books usually have a high density of T: K: or bar lines |
+            if not (re.search(r'(?m)^T:', content) or re.search(r'(?m)^K:', content) or content.count('|') > 5):
+                 self.success = False
+                 return
+
             self.success = True
             parts = re.split(r'(?m)^X:', content)
+            
+            # Limit the number of tunes parsed from a single URL to prevent hangs on garbage pages
+            MAX_TUNES_PER_PAGE = 500
+            if len(parts) > MAX_TUNES_PER_PAGE + 1:
+                logger.warning(f"Too many potential tunes found ({len(parts)-1}) in {self.url}. Limiting to {MAX_TUNES_PER_PAGE}.")
+                parts = parts[:MAX_TUNES_PER_PAGE + 1]
+
             for part in parts[1:]:
                 tune_raw = "X:" + part
                 try:
                     tune = Tune(tune_raw)
-                    self.tunes.append(tune)
+                    if tune.status != "skipped" or (tune.metadata and len(tune.metadata) > 1):
+                        self.tunes.append(tune)
                 except Exception as e:
                     logger.warning(f"Failed to parse individual tune in {self.url}: {e}")
             

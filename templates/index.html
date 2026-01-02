@@ -893,6 +893,18 @@
             }
         };
 
+        window.switchLogFile = function () {
+            window.clearLogs();
+            window.startLogStream();
+        };
+
+        window.clearLogs = function () {
+            const logDisplay = document.getElementById('log-display');
+            if (logDisplay) {
+                logDisplay.innerHTML = '';
+            }
+        };
+
         window.switchTab = function (name, save = true) {
             const tabs = document.querySelectorAll('.tab');
             const contents = document.querySelectorAll('.tab-content');
@@ -1028,8 +1040,52 @@
                         indexersList.appendChild(div);
                     });
                 }
+
+                updateLogSelect(data);
             } catch (error) {
                 console.error('Error loading processes:', error);
+            }
+        }
+
+        function updateLogSelect(data) {
+            const select = document.getElementById('log-file-select');
+            if (!select) return;
+            const currentVal = select.value;
+
+            // Base list of options
+            const options = [
+                { value: 'fetcher_out.log', text: 'Fetcher (Stdout)' },
+                { value: 'parser_out.log', text: 'Parser (Stdout)' },
+                { value: 'dispatcher.log', text: 'Dispatcher' },
+                { value: 'purger.log', text: 'Purger' },
+                { value: 'indexer_out.log', text: 'Indexer (Stdout)' },
+                { value: 'purger_error.log', text: 'Purger (Error)' }
+            ];
+
+            // Add dynamic ones
+            data.fetchers.forEach(f => {
+                options.push({ value: `fetcher.${f.id}.log`, text: `Fetcher ${f.id} (Info)` });
+            });
+            data.parsers.forEach(p => {
+                options.push({ value: `parser.${p.id}.log`, text: `Parser ${p.id} (Info)` });
+            });
+            data.indexers.forEach(i => {
+                options.push({ value: `indexer.${i.id}.log`, text: `Indexer ${i.id} (Info)` });
+            });
+
+            const existingValues = Array.from(select.options).map(o => o.value).join(',');
+            const newValues = options.map(o => o.value).join(',');
+
+            if (existingValues !== newValues) {
+                select.innerHTML = '';
+                options.forEach(opt => {
+                    const o = document.createElement('option');
+                    o.value = opt.value;
+                    o.textContent = opt.text;
+                    select.appendChild(o);
+                });
+                select.value = currentVal;
+                if (select.selectedIndex === -1) select.selectedIndex = 0;
             }
         }
 

@@ -18,20 +18,13 @@ from pathlib import Path
 
 from logging.handlers import RotatingFileHandler
 
-# Log file in the logs directory
-LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'fetcher.log'
+# Log file configuration (will be specialized in __init__)
 logger = logging.getLogger('url_fetcher')
 logger.setLevel(logging.INFO)
-if not logger.handlers:
-    os.makedirs(LOG_FILE.parent, exist_ok=True)
-    # 3 MB = 3145728 bytes
-    fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
-    fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-    logger.addHandler(fh)
 
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
-MAX_LINK_DISTANCE = 4
+MAX_LINK_DISTANCE = 0
 
 # Set a global socket timeout as a last-resort safety net
 socket.setdefaulttimeout(30)
@@ -39,11 +32,27 @@ socket.setdefaulttimeout(30)
 class URLFetcher:
     def __init__(self, fetcher_id):
         self.fetcher_id = fetcher_id
+        self.setup_logging()
         self.running = True
         self.robots_cache = {}
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGUSR1, self.dump_stack_trace)
+    
+    def setup_logging(self):
+        """Configure logging for this specific fetcher instance"""
+        log_dir = Path(DB_PATH).resolve().parent / 'logs'
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = log_dir / f'fetcher.{self.fetcher_id}.log'
+        
+        # Remove existing handlers if any
+        logger.handlers = []
+        
+        # 3 MB = 3145728 bytes
+        fh = RotatingFileHandler(log_file, maxBytes=3145728, backupCount=4)
+        fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
+        logger.addHandler(fh)
+        logger.info(f"Logging initialized for fetcher {self.fetcher_id}")
     
     def dump_stack_trace(self, sig, frame):
         """Dump stack trace of all threads to the log"""
@@ -295,11 +304,11 @@ class URLFetcher:
         try:
             # 1. Get URL
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(15.0)
+            sock.settimeout(60.0) # Increased timeout for dispatcher bottlenecks
             sock.connect((DISPATCHER_HOST, DISPATCHER_PORT))
             
             request = {'action': 'get_url'}
-            sock.send(json.dumps(request).encode('utf-8'))
+            sock.sendall(json.dumps(request).encode('utf-8'))
             
             response_data = sock.recv(4096).decode('utf-8')
             sock.close() # Close immediately
@@ -339,8 +348,9 @@ class URLFetcher:
                 return False
                 
         except Exception as e:
+            logger.error(f"Fetcher {self.fetcher_id} communication error: {e}")
             print(f"Fetcher {self.fetcher_id} communication error: {e}")
-            time.sleep(5)
+            time.sleep(2) # Reduced sleep for faster recovery
             return False
     
     def run(self):

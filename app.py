@@ -231,11 +231,23 @@ def get_processes():
 def stream_log(filename):
     """Stream log file contents via SSE"""
     # Security check: only allow known log files and prevent directory traversal
-    allowed_logs = [
-        'fetcher.log', 'parser.log', 'dispatcher.log', 'purger.log',
-        'fetcher_out.log', 'parser_out.log', 'indexer_out.log', 'purger_error.log'
+    import re
+    is_valid = False
+    
+    # Static list
+    allowed_static = [
+        'fetcher_out.log', 'parser_out.log', 'indexer_out.log', 
+        'purger.log', 'purger_error.log', 'dispatcher.log'
     ]
-    if filename not in allowed_logs:
+    if filename in allowed_static:
+        is_valid = True
+    # Pattern-based (fetcher.1.log, parser.1.log, etc)
+    elif re.match(r'^(fetcher|parser|indexer)\.\d+\.log$', filename):
+        is_valid = True
+    elif filename in ['fetcher.log', 'parser.log', 'indexer.log']: # support legacy paths if any
+        is_valid = True
+
+    if not is_valid:
         return jsonify({'status': 'error', 'message': 'Forbidden log file'}), 403
     
     log_path = os.path.join('logs', filename)
