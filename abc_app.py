@@ -15,6 +15,31 @@ v_index = VectorIndex()
 def index():
     return render_template('abc_index.html')
 
+@app.route('/api/filters')
+def get_filters():
+    """Get unique keys and rhythms for the UI dropdowns"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL AND key != '' ORDER BY key ASC")
+        keys = [row[0] for row in cursor.fetchall()]
+        
+        cursor.execute("SELECT DISTINCT rhythm FROM tunes WHERE rhythm IS NOT NULL AND rhythm != '' ORDER BY rhythm ASC")
+        rhythms = [row[0] for row in cursor.fetchall()]
+
+        cursor.execute("SELECT DISTINCT meter FROM tunes WHERE meter IS NOT NULL AND meter != '' ORDER BY meter ASC")
+        meters = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        return jsonify({
+            'keys': keys,
+            'rhythms': rhythms,
+            'meters': meters
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/search', methods=['GET'])
 def search_tunes():
     """Metadata-based tune search"""
@@ -22,6 +47,7 @@ def search_tunes():
     title = request.args.get('title', '').strip()
     key = request.args.get('key', '').strip()
     rhythm = request.args.get('rhythm', '').strip()
+    meter = request.args.get('meter', '').strip()
     composer = request.args.get('composer', '').strip()
     limit = int(request.args.get('limit', 50))
     offset = int(request.args.get('offset', 0))
@@ -31,7 +57,7 @@ def search_tunes():
         cursor = conn.cursor()
         
         sql = '''
-            SELECT t.id, t.title, t.key, t.rhythm, t.composer, tb.url, t.tune_body
+            SELECT t.id, t.title, t.key, t.rhythm, t.composer, tb.url, t.tune_body, t.status, t.skip_reason, t.meter
             FROM tunes t
             JOIN tunebooks tb ON t.tunebook_id = tb.id
             WHERE 1=1
@@ -54,16 +80,28 @@ def search_tunes():
             params.append(f'%{title}%')
             
         if key:
-            sql += ' AND t.key LIKE ?'
-            params.append(f'%{key}%')
+            sql += ' AND t.key = ?'
+            params.append(key)
             
         if rhythm:
-            sql += ' AND t.rhythm LIKE ?'
-            params.append(f'%{rhythm}%')
+            sql += ' AND t.rhythm = ?'
+            params.append(rhythm)
+
+        if meter:
+            sql += ' AND t.meter = ?'
+            params.append(meter)
             
         if composer:
             sql += ' AND t.composer LIKE ?'
             params.append(f'%{composer}%')
+
+        status_filter = request.args.get('status', '').strip()
+        if status_filter:
+            sql += ' AND t.status = ?'
+            params.append(status_filter)
+        else:
+            # Default to only showing parsed tunes unless specifically requested
+            sql += " AND t.status = 'parsed'"
             
         # Get total count for pagination
         count_sql = f"SELECT COUNT(*) FROM ({sql})"
@@ -86,7 +124,10 @@ def search_tunes():
                 'rhythm': row[3],
                 'composer': row[4],
                 'url': row[5],
-                'abc': row[6]
+                # 'tune_body': row[6],
+                'status': row[7],
+                'skip_reason': row[8],
+                'meter': row[9]
             })
             
         conn.close()
@@ -111,7 +152,7 @@ def get_tune(tune_id):
                 t.reference_number, t.title, t.composer, t.rhythm, t.key,
                 t.meter, t.unit_note_length, t.tempo, t.parts, t.transcription,
                 t.notes, t.history, t.origin, t.area, t.book, t.discography,
-                t.source, t.instruction, t.tune_body, tb.url
+                t.source, t.instruction, t.tune_body, tb.url, t.status, t.skip_reason
             FROM tunes t
             JOIN tunebooks tb ON t.tunebook_id = tb.id
             WHERE t.id = ?
@@ -152,7 +193,11 @@ def get_tune(tune_id):
                 'abc': full_abc,
                 'reference': row[0],
                 'history': row[11],
-                'notes': row[10]
+                'notes': row[10],
+                'status': row[20],
+                'skip_reason': row[21],
+                'meter': row[5],
+                'tempo': row[7]
             })
         return jsonify({'error': 'Tune not found'}), 404
     except Exception as e:

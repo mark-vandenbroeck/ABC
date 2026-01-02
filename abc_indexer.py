@@ -125,7 +125,7 @@ class ABCIndexer:
             cursor.execute('''
                 SELECT id, pitches 
                 FROM tunes 
-                WHERE tunebook_id = ?
+                WHERE tunebook_id = ? AND status = 'parsed'
             ''', (tunebook_id,))
             
             tunes = cursor.fetchall()

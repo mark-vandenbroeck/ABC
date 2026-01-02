@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, Response
 import sqlite3
 import subprocess
 import os
@@ -204,6 +204,43 @@ def index():
 def get_processes():
     """Get status of all processes"""
     return jsonify(get_process_info())
+
+@app.route('/api/logs/stream/<filename>')
+def stream_log(filename):
+    """Stream log file contents via SSE"""
+    # Security check: only allow known log files and prevent directory traversal
+    allowed_logs = [
+        'fetcher.log', 'parser.log', 'dispatcher.log', 'purger.log',
+        'fetcher_out.log', 'parser_out.log', 'indexer_out.log', 'purger_error.log'
+    ]
+    if filename not in allowed_logs:
+        return jsonify({'status': 'error', 'message': 'Forbidden log file'}), 403
+    
+    log_path = os.path.join('logs', filename)
+    if not os.path.exists(log_path):
+        os.makedirs('logs', exist_ok=True)
+        with open(log_path, 'a'): pass
+
+    def generate():
+        with open(log_path, 'r', errors='replace') as f:
+            # Start near the end
+            f.seek(0, os.SEEK_END)
+            curr_size = f.tell()
+            # Seek back 2000 chars roughly
+            f.seek(max(0, curr_size - 5000), os.SEEK_SET)
+            
+            # Skip the first partial line if we seeked into middle
+            if f.tell() > 0:
+                f.readline()
+                
+            while True:
+                line = f.readline()
+                if not line:
+                    time.sleep(0.5)
+                    continue
+                yield f"data: {json.dumps(line)}\n\n"
+
+    return Response(generate(), mimetype='text/event-stream')
 
 @app.route('/api/processes/dispatcher/start', methods=['POST'])
 def start_dispatcher():

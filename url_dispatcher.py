@@ -124,7 +124,7 @@ class URLDispatcher:
             # Fetch a batch of candidate URLs ordered by created_at
             # Fetch a batch of candidate URLs ordered by created_at, strictly filtering by host status
             cursor.execute('''
-                SELECT u.id, u.url, u.host
+                SELECT u.id, u.url, u.host, COALESCE(u.link_distance, 0) as link_distance
                 FROM urls u
                 LEFT JOIN hosts h ON u.host = h.host
                 WHERE ((u.status = '' OR u.status IS NULL) OR (u.status = 'dispatched' AND (u.dispatched_at IS NULL OR u.dispatched_at <= datetime('now', ?))))
@@ -140,7 +140,7 @@ class URLDispatcher:
                 conn.commit()
                 return None
 
-            for url_id, url, host in candidates:
+            for url_id, url, host, dist in candidates:
                 # Try to atomically claim this URL only if the host is allowed
                 try:
                     cursor.execute('''
@@ -171,7 +171,7 @@ class URLDispatcher:
                             print(f"Warning: could not reserve host {host} on dispatch: {e2}")
 
                     conn.commit()
-                    return {'id': url_id, 'url': url}
+                    return {'id': url_id, 'url': url, 'link_distance': dist}
                 except sqlite3.OperationalError:
                     # Lock error while trying to claim; roll back and give up (caller may retry)
                     try:

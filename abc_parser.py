@@ -47,18 +47,51 @@ class Tune:
         self.title = "Untitled"
         self.tune_body = ""
         self.pitches = []
+        self.status = "parsed"
+        self.skip_reason = None
         
         if len(raw_data) > self.MAX_TUNE_CHARS:
+            self.status = "skipped"
+            self.skip_reason = "too_large"
             logger.warning(f"Skipping tune: raw data too large ({len(raw_data)} chars)")
+            self._parse_headers_only()
+            return
+
+        # Check line count
+        line_count = raw_data.count('\n') + 1
+        if line_count > self.MAX_TUNE_LINES:
+            self.status = "skipped"
+            self.skip_reason = "too_many_lines"
+            logger.warning(f"Skipping tune: too many lines ({line_count})")
+            self._parse_headers_only()
             return
             
         # Quick complexity check: count voices
         voice_count = len(re.findall(r'^V:\s*', raw_data, re.MULTILINE))
         if voice_count > self.MAX_VOICES:
+            self.status = "skipped"
+            self.skip_reason = "too_many_voices"
             logger.warning(f"Skipping tune: too many voices ({voice_count})")
+            self._parse_headers_only()
             return
 
         self._parse()
+
+    def _parse_headers_only(self):
+        """Minimal parsing to extract title and metadata when tune is skipped"""
+        lines = self.raw_data.strip().split('\n')
+        header_pattern = re.compile(r'^([A-Z]):\s*(.*)$')
+        for line in lines:
+            line_stripped = line.strip()
+            match = header_pattern.match(line_stripped)
+            if match:
+                key, value = match.groups()
+                value = re.sub(r'%.*', '', value).strip()
+                if key in self.METADATA_MAPPING:
+                    db_key = self.METADATA_MAPPING[key]
+                    if db_key == 'title' and self.title == "Untitled":
+                        self.title = value
+                    self.metadata[db_key] = value
 
     def _parse(self):
         lines = self.raw_data.strip().split('\n')
@@ -299,7 +332,9 @@ class Tune:
             "raw_data": self.raw_data,
             "tune_body": self.tune_body,
             "pitches": ",".join(map(str, self.pitches)),
-            "elements": self.elements
+            "elements": self.elements,
+            "status": self.status,
+            "skip_reason": self.skip_reason
         }
 
 class Tunebook:

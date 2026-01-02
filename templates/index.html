@@ -118,7 +118,8 @@
             font-weight: 500;
             transition: all 0.2s ease;
             white-space: nowrap;
-            font-size: 0.85rem;
+            font-size: 1.1rem;
+            padding: 10px 20px;
         }
 
         .tab:hover {
@@ -419,6 +420,49 @@
             padding: 6px 12px;
             font-size: 0.85rem;
         }
+
+        /* Log Viewer */
+        .log-container {
+            background: #0f172a;
+            color: #e2e8f0;
+            font-family: 'Courier New', Courier, monospace;
+            padding: 15px;
+            border-radius: 8px;
+            height: 600px;
+            overflow-y: auto;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+        }
+
+        .log-line {
+            white-space: pre-wrap;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 2px 0;
+            word-break: break-all;
+        }
+
+        .log-line.error {
+            color: #f87171;
+        }
+
+        .log-line.warn {
+            color: #fbbf24;
+        }
+
+        .log-line.info {
+            color: #60a5fa;
+        }
+
+        .log-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+        }
     </style>
 </head>
 
@@ -438,6 +482,7 @@
             <div class="tab" data-tab="url-queue" role="tab" tabindex="0">URL Queue</div>
             <div class="tab" data-tab="hosts" role="tab" tabindex="0">Hosts</div>
             <div class="tab" data-tab="mime-types" role="tab" tabindex="0">Configuration</div>
+            <div class="tab" data-tab="logs" role="tab" tabindex="0">Log Viewer</div>
         </div>
 
         <!-- Process Control Section -->
@@ -677,6 +722,33 @@
                 </div>
             </div>
         </div>
+
+        <!-- Log Viewer Section -->
+        <div id="logs" class="section tab-content">
+            <h2>Live Log Viewer</h2>
+            <div class="log-controls">
+                <label style="margin:0;">Log file:</label>
+                <select id="log-file-select" onchange="switchLogFile()">
+                    <option value="fetcher_out.log">Fetcher (Stdout)</option>
+                    <option value="parser_out.log">Parser (Stdout)</option>
+                    <option value="dispatcher.log">Dispatcher</option>
+                    <option value="purger.log">Purger</option>
+                    <option value="fetcher.log">Fetcher (Info)</option>
+                    <option value="parser.log">Parser (Info)</option>
+                    <option value="indexer_out.log">Indexer (Stdout)</option>
+                    <option value="purger_error.log">Purger (Error)</option>
+                </select>
+                <button class="button" onclick="clearLogs()">Clear Screen</button>
+                <label style="margin:0; display:flex; align-items:center; gap:5px; font-size:0.85rem;">
+                    <input type="checkbox" id="auto-scroll-check" checked> Auto-scroll
+                </label>
+                <span id="log-status" class="status stopped"
+                    style="padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">Disconnected</span>
+            </div>
+            <div id="log-display" class="log-container">
+                <!-- Log lines will appear here -->
+            </div>
+        </div>
     </div>
 
     <script>
@@ -704,13 +776,89 @@
             if (extInput) extInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRefusedExtension(); });
             if (reasonInput) reasonInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') addRefusedExtension(); });
 
-            // Tab logic: wire tabs and restore last selected tab
             const tabs = document.querySelectorAll('.tab');
+            let logEventSource = null;
             function switchTab(name, save = true) {
                 tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === name));
                 document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === name));
                 if (save) localStorage.setItem('activeTab', name);
+
+                // Live Log logic: only connect if tab is active
+                if (name === 'logs') {
+                    startLogStream();
+                } else {
+                    stopLogStream();
+                }
             }
+
+            function startLogStream() {
+                if (logEventSource) return;
+                const filename = document.getElementById('log-file-select').value;
+                const statusSpan = document.getElementById('log-status');
+                const logDisplay = document.getElementById('log-display');
+
+                statusSpan.textContent = 'Connecting...';
+                statusSpan.className = 'status starting';
+
+                logEventSource = new EventSource(`/api/logs/stream/${filename}`);
+
+                logEventSource.onmessage = function (event) {
+                    const line = JSON.parse(event.data);
+                    const lineElement = document.createElement('div');
+                    lineElement.className = 'log-line';
+
+                    // Simple highlighting
+                    const lowerLine = line.toLowerCase();
+                    if (lowerLine.includes('error')) lineElement.classList.add('error');
+                    else if (lowerLine.includes('warning') || lowerLine.includes('warn')) lineElement.classList.add('warn');
+                    else if (lowerLine.includes('info')) lineElement.classList.add('info');
+
+                    lineElement.textContent = line;
+                    logDisplay.appendChild(lineElement);
+
+                    // Limit lines to avoid memory issues (last 1000 lines)
+                    if (logDisplay.childNodes.length > 1000) {
+                        logDisplay.removeChild(logDisplay.firstChild);
+                    }
+
+                    if (document.getElementById('auto-scroll-check').checked) {
+                        logDisplay.scrollTop = logDisplay.scrollHeight;
+                    }
+                };
+
+                logEventSource.onopen = function () {
+                    statusSpan.textContent = 'Streaming';
+                    statusSpan.className = 'status running';
+                };
+
+                logEventSource.onerror = function () {
+                    statusSpan.textContent = 'Error / Reconnecting';
+                    statusSpan.className = 'status stopped';
+                };
+            }
+
+            function stopLogStream() {
+                if (logEventSource) {
+                    logEventSource.close();
+                    logEventSource = null;
+                    const statusSpan = document.getElementById('log-status');
+                    if (statusSpan) {
+                        statusSpan.textContent = 'Disconnected';
+                        statusSpan.className = 'status stopped';
+                    }
+                }
+            }
+
+            // Global functions for the Log Viewer tab
+            window.switchLogFile = function () {
+                stopLogStream();
+                document.getElementById('log-display').innerHTML = '';
+                startLogStream();
+            };
+
+            window.clearLogs = function () {
+                document.getElementById('log-display').innerHTML = '';
+            };
 
             tabs.forEach(tab => {
                 tab.addEventListener('click', () => switchTab(tab.dataset.tab));

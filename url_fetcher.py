@@ -30,6 +30,7 @@ if not logger.handlers:
 
 DISPATCHER_HOST = 'localhost'
 DISPATCHER_PORT = 8888
+MAX_LINK_DISTANCE = 4
 
 class URLFetcher:
     def __init__(self, fetcher_id):
@@ -115,12 +116,13 @@ class URLFetcher:
         
         return links
     
-    def add_urls_to_database(self, urls):
+    def add_urls_to_database(self, urls, current_distance=0):
         """Add new URLs to the database, storing host when possible to ensure per-host
         cooldowns are applied by the dispatcher immediately after insertion."""
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        new_distance = current_distance + 1
         added = 0
         for url in urls:
             try:
@@ -136,9 +138,9 @@ class URLFetcher:
                     host = None
 
                 if host:
-                    cursor.execute('INSERT OR IGNORE INTO urls (url, host) VALUES (?, ?)', (url, host))
+                    cursor.execute('INSERT OR IGNORE INTO urls (url, host, link_distance) VALUES (?, ?, ?)', (url, host, new_distance))
                 else:
-                    cursor.execute('INSERT OR IGNORE INTO urls (url) VALUES (?)', (url,))
+                    cursor.execute('INSERT OR IGNORE INTO urls (url, link_distance) VALUES (?, ?)', (url, new_distance))
 
                 if cursor.rowcount > 0:
                     added += 1
@@ -149,7 +151,7 @@ class URLFetcher:
         conn.close()
         return added
     
-    def fetch_url(self, url_id, url):
+    def fetch_url(self, url_id, url, link_distance=0):
         """Fetch a URL and return the result"""
         try:
             # Check robots.txt
@@ -198,13 +200,15 @@ class URLFetcher:
             # Extract links if HTML
             if mime_type.startswith('text/html'):
                 try:
-                    # Harvesting disabled temporarily
-                    pass
-                    # html_text = content.decode('utf-8', errors='ignore')
-                    # links = self.extract_links(html_text, url)
-                    # if links:
-                    #     added = self.add_urls_to_database(links)
-                    #     print(f"Added {added} new URLs from {url}")
+                    # Check link distance before harvesting
+                    if link_distance < MAX_LINK_DISTANCE:
+                        html_text = content.decode('utf-8', errors='ignore')
+                        links = self.extract_links(html_text, url)
+                        if links:
+                            added = self.add_urls_to_database(links, current_distance=link_distance)
+                            print(f"Added {added} new URLs from {url} (dist: {link_distance} -> {link_distance+1})")
+                    else:
+                        print(f"Skipping link harvesting for {url} (distance {link_distance} >= {MAX_LINK_DISTANCE})")
                 except Exception as e:
                     print(f"Error processing links from {url}: {e}")
             
@@ -246,11 +250,12 @@ class URLFetcher:
             if response['status'] == 'ok':
                 url_id = response['url_id']
                 url = response['url']
+                link_distance = response.get('link_distance', 0)
                 
-                print(f"Fetcher {self.fetcher_id} fetching: {url}")
+                print(f"Fetcher {self.fetcher_id} fetching: {url} (dist: {link_distance})")
                 
                 # Fetch the URL
-                result = self.fetch_url(url_id, url)
+                result = self.fetch_url(url_id, url, link_distance)
                 
                 if result:
                     # If fetch_url returned an error_type, send it so dispatcher can act (e.g., disable host)

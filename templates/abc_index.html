@@ -114,7 +114,7 @@
 
         .search-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 20px;
             margin-bottom: 20px;
         }
@@ -132,7 +132,8 @@
             margin-left: 4px;
         }
 
-        input {
+        input,
+        select {
             background: #0f172a;
             border: 1px solid var(--border);
             border-radius: 12px;
@@ -141,10 +142,11 @@
             font-family: inherit;
             font-size: 1rem;
             transition: all 0.3s ease;
+            outline: none;
         }
 
-        input:focus {
-            outline: none;
+        input:focus,
+        select:focus {
             border-color: var(--primary);
             box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
         }
@@ -425,15 +427,33 @@
                 </div>
                 <div class="input-group">
                     <label>Toonsoort (Key)</label>
-                    <input type="text" id="key-search" placeholder="bijv. G, D, Am...">
+                    <select id="key-search">
+                        <option value="">Alle toonsoorten</option>
+                    </select>
                 </div>
                 <div class="input-group">
                     <label>Ritme (Rhythm)</label>
-                    <input type="text" id="rhythm-search" placeholder="bijv. reel, jig, waltz...">
+                    <select id="rhythm-search">
+                        <option value="">Alle ritmes</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Maatsoort (Meter)</label>
+                    <select id="meter-search">
+                        <option value="">Alle maatsoorten</option>
+                    </select>
                 </div>
                 <div class="input-group">
                     <label>Componist</label>
                     <input type="text" id="composer-search" placeholder="Naam...">
+                </div>
+                <div class="input-group">
+                    <label>Status</label>
+                    <select id="status-search">
+                        <option value="parsed">Geparsed (Normaal)</option>
+                        <option value="skipped">Overgeslagen (Skip)</option>
+                        <option value="">Alle</option>
+                    </select>
                 </div>
             </div>
             <div class="search-actions">
@@ -490,12 +510,6 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 25px;">
-                    <h4 style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
-                        ABC Broncode</h4>
-                    <pre id="raw-abc-view"
-                        style="background: #0f172a; color: #10b981; padding: 20px; border-radius: 12px; border: 1px solid var(--border); font-family: 'Courier New', monospace; font-size: 0.95rem; overflow-x: auto; white-space: pre-wrap; line-height: 1.4;"></pre>
-                </div>
 
                 <div style="margin-top: 25px;">
                     <div
@@ -510,7 +524,7 @@
                                 <option value="0">Piano</option>
                                 <option value="40">Viool</option>
                                 <option value="73">Fluit</option>
-                                <option value="21">Accordeon</option>
+                                <option value="21" selected>Accordeon</option>
                             </select>
                         </div>
                     </div>
@@ -555,6 +569,13 @@
                         <!-- Similar results will appear here -->
                     </div>
                 </div>
+
+                <div style="margin-top: 25px;">
+                    <h4 style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
+                        ABC Broncode</h4>
+                    <pre id="raw-abc-view"
+                        style="background: #0f172a; color: #10b981; padding: 20px; border-radius: 12px; border: 1px solid var(--border); font-family: 'Courier New', monospace; font-size: 0.95rem; overflow-x: auto; white-space: pre-wrap; line-height: 1.4;"></pre>
+                </div>
             </div>
         </div>
     </div>
@@ -578,8 +599,10 @@
             const k = document.getElementById('key-search').value;
             const r = document.getElementById('rhythm-search').value;
             const c = document.getElementById('composer-search').value;
+            const s = document.getElementById('status-search').value;
+            const m = document.getElementById('meter-search').value;
 
-            const url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&rhythm=${encodeURIComponent(r)}&composer=${encodeURIComponent(c)}&limit=${limitSize}&offset=${currentOffset}`;
+            const url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&rhythm=${encodeURIComponent(r)}&meter=${encodeURIComponent(m)}&composer=${encodeURIComponent(c)}&status=${encodeURIComponent(s)}&limit=${limitSize}&offset=${currentOffset}`;
 
             try {
                 const res = await fetch(url);
@@ -621,7 +644,9 @@
                     <div class="tune-meta">
                         <div class="badge">Key: <b>${tune.key || '-'}</b></div>
                         <div class="badge">Ritme: <b>${tune.rhythm || '-'}</b></div>
+                        <div class="badge">Maat: <b>${tune.meter || '-'}</b></div>
                         ${tune.composer ? `<div class="badge">Door: <b>${tune.composer}</b></div>` : ''}
+                        ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">Skipped: <b>${tune.skip_reason}</b></div>` : ''}
                     </div>
                     <div class="tune-footer">
                         <a href="javascript:void(0)" class="btn-text" onclick="showTune(${tune.id})">
@@ -648,8 +673,11 @@
                 document.getElementById('modal-meta').innerHTML = `
                     <div class="badge">Key: <b>${tune.key || '-'}</b></div>
                     <div class="badge">Ritme: <b>${tune.rhythm || '-'}</b></div>
+                    <div class="badge">Maat: <b>${tune.meter || '-'}</b></div>
+                    <div class="badge">Tempo: <b>${tune.tempo || '-'}</b></div>
                     <div class="badge">Componist: <b>${tune.composer || '-'}</b></div>
                     <div class="badge">ID: <b>#${id}</b></div>
+                    ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">Skipped: <b>${tune.skip_reason}</b></div>` : ''}
                 `;
                 document.getElementById('modal-history').textContent = tune.notes || tune.history || "Geen extra informatie beschikbaar.";
                 document.getElementById('modal-link').href = tune.url;
@@ -660,8 +688,19 @@
 
                 activeTuneAbc = tune.abc;
 
-                // Set up similarity button
+                // Hide audio and similarity for skipped tunes
+                const audioSection = document.getElementById('audio-controls').parentElement;
                 const similarBtn = document.getElementById('find-similar-btn');
+
+                if (tune.status === 'skipped') {
+                    audioSection.style.display = 'none';
+                    similarBtn.style.display = 'none';
+                } else {
+                    audioSection.style.display = 'block';
+                    similarBtn.style.display = 'flex';
+                }
+
+                // Set up similarity button
                 similarBtn.onclick = () => findSimilar(id);
                 document.getElementById('similar-tunes-section').style.display = 'none';
                 document.getElementById('similar-tunes-list').innerHTML = '';
@@ -674,8 +713,8 @@
                     paddingright: 15
                 })[0];
 
-                // Reset instrument selector to default (Piano) when loading a new tune
-                document.getElementById('midi-program').value = "0";
+                // Reset instrument selector to default (Accordion) when loading a new tune
+                document.getElementById('midi-program').value = "21";
 
                 setupAudio(currentVisualObj);
             } catch (err) {
@@ -859,7 +898,9 @@
             document.getElementById('q-search').value = '';
             document.getElementById('key-search').value = '';
             document.getElementById('rhythm-search').value = '';
+            document.getElementById('meter-search').value = '';
             document.getElementById('composer-search').value = '';
+            document.getElementById('status-search').value = 'parsed';
             performSearch();
         }
 
@@ -894,10 +935,45 @@
             }
         };
 
-        // Initial search
+        // Initial load
         document.addEventListener('DOMContentLoaded', () => {
+            loadFilters();
             // performSearch(); // Optional: start with some tunes
         });
+
+        async function loadFilters() {
+            try {
+                const res = await fetch('/api/filters');
+                const data = await res.json();
+
+                const keySelect = document.getElementById('key-search');
+                const rhythmSelect = document.getElementById('rhythm-search');
+                const meterSelect = document.getElementById('meter-search');
+
+                data.keys.forEach(k => {
+                    const opt = document.createElement('option');
+                    opt.value = k;
+                    opt.textContent = k;
+                    keySelect.appendChild(opt);
+                });
+
+                data.rhythms.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r;
+                    opt.textContent = r;
+                    rhythmSelect.appendChild(opt);
+                });
+
+                data.meters.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    meterSelect.appendChild(opt);
+                });
+            } catch (err) {
+                console.error("Failed to load filters:", err);
+            }
+        }
 
         // Trigger search on enter
         document.querySelectorAll('input').forEach(input => {

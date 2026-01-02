@@ -64,8 +64,8 @@ class URLParser:
                         tunebook_id, reference_number, title, composer, origin, area, 
                         meter, unit_note_length, tempo, parts, transcription, notes, 
                         "group", history, key, rhythm, book, discography, source, 
-                        instruction, tune_body, pitches
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        instruction, tune_body, pitches, status, skip_reason
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     tunebook_id,
                     meta.get('reference_number'),
@@ -88,7 +88,9 @@ class URLParser:
                     meta.get('source'),
                     meta.get('instruction'),
                     tune['tune_body'],
-                    tune['pitches']
+                    tune['pitches'],
+                    tune.get('status', 'parsed'),
+                    tune.get('skip_reason')
                 ))
             
             conn.commit()

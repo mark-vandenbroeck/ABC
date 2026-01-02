@@ -18,7 +18,16 @@ def main():
     print('Deleting rows from urls and hosts...')
     cur.execute('DELETE FROM urls')
     cur.execute('DELETE FROM hosts')
+    print('Deleting rows from tunes, tunebooks and faiss_mapping...')
+    cur.execute('DELETE FROM tunes')
+    cur.execute('DELETE FROM tunebooks')
+    cur.execute('DELETE FROM faiss_mapping')
     conn.commit()
+
+    # Remove FAISS index file
+    if os.path.exists("data/tunes.index"):
+        print('Removing FAISS index file...')
+        os.remove("data/tunes.index")
 
     print('Inserting seed URLs...')
     from urllib.parse import urlparse
@@ -33,7 +42,7 @@ def main():
     ]
     for u in seed_urls:
         h = urlparse(u).hostname
-        cur.execute("INSERT INTO urls (url, host, created_at) VALUES (?, ?, datetime('now'))", (u, h))
+        cur.execute("INSERT INTO urls (url, host, link_distance, created_at) VALUES (?, ?, 0, datetime('now'))", (u, h))
     conn.commit()
 
     cur.execute('SELECT COUNT(*) FROM urls')

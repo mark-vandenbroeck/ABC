@@ -20,7 +20,8 @@ def init_database():
             size_bytes INTEGER,
             status TEXT DEFAULT '',
             mime_type TEXT,
-            document BLOB
+            document BLOB,
+            link_distance INTEGER DEFAULT 0
         )
     ''')
     
@@ -89,6 +90,13 @@ def init_database():
                         cursor.execute('UPDATE urls SET host = ? WHERE id = ?', (h, rid))
                 except Exception:
                     continue
+        except Exception:
+            pass
+
+    # Add link_distance column for crawler depth control
+    if 'link_distance' not in cols:
+        try:
+            cursor.execute('ALTER TABLE urls ADD COLUMN link_distance INTEGER DEFAULT 0')
         except Exception:
             pass
 
@@ -201,6 +209,8 @@ def init_database():
             tune_body TEXT NOT NULL,
             pitches TEXT,
             intervals TEXT,
+            status TEXT DEFAULT 'parsed',
+            skip_reason TEXT,
             FOREIGN KEY (tunebook_id) REFERENCES tunebooks(id)
         )
     ''')
@@ -211,6 +221,18 @@ def init_database():
     if 'intervals' not in tune_cols:
         try:
             cursor.execute('ALTER TABLE tunes ADD COLUMN intervals TEXT')
+        except Exception:
+            pass
+
+    if 'status' not in tune_cols:
+        try:
+            cursor.execute("ALTER TABLE tunes ADD COLUMN status TEXT DEFAULT 'parsed'")
+        except Exception:
+            pass
+            
+    if 'skip_reason' not in tune_cols:
+        try:
+            cursor.execute("ALTER TABLE tunes ADD COLUMN skip_reason TEXT")
         except Exception:
             pass
 
@@ -228,8 +250,11 @@ def init_database():
     conn.close()
 
 def get_db_connection():
-    """Get a database connection"""
-    return sqlite3.connect(DB_PATH)
+    """Get a database connection with extended timeout and WAL mode enabled"""
+    conn = sqlite3.connect(DB_PATH, timeout=60.0)
+    # Enable Write-Ahead Logging for better concurrency
+    conn.execute('PRAGMA journal_mode=WAL')
+    return conn
 
 if __name__ == '__main__':
     init_database()
