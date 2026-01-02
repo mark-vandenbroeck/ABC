@@ -592,7 +592,7 @@ def get_urls():
     limit = int(request.args.get('limit', 100))
     offset = int(request.args.get('offset', 0))
 
-    query = 'SELECT id, url, created_at, downloaded_at, size_bytes, status, mime_type, http_status, retries FROM urls WHERE 1=1'
+    query = 'SELECT id, url, created_at, downloaded_at, size_bytes, status, mime_type, http_status, retries, link_distance FROM urls WHERE 1=1'
     params = []
 
     if status:
@@ -673,7 +673,8 @@ def get_urls():
             'status': row[5] or '',
             'mime_type': row[6] or '',
             'http_status': row[7],
-            'retries': row[8] or 0
+            'retries': row[8] or 0,
+            'link_distance': row[9] or 0
         })
 
     return jsonify({

@@ -617,6 +617,7 @@
                         <th>MIME Type</th>
                         <th>HTTP Status</th>
                         <th>Retries</th>
+                        <th>Distance</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -1192,6 +1193,7 @@
                         <td>${url.mime_type || ''}</td>
                         <td>${url.http_status ?? ''}</td>
                         <td>${url.retries ?? 0}</td>
+                        <td>${url.link_distance ?? 0}</td>
                         <td><button class="button danger" onclick="deleteUrl(${url.id})">Delete</button></td>
                     `;
                     tbody.appendChild(tr);
