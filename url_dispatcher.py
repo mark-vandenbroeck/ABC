@@ -50,6 +50,18 @@ class URLDispatcher:
 
         # Release stale URLs on startup
         self._reset_stale_urls()
+
+        # Write PID file for management dashboard
+        self._write_pid()
+
+    def _write_pid(self):
+        try:
+            os.makedirs('run', exist_ok=True)
+            pid_file = os.path.join('run', 'dispatcher.pid')
+            with open(pid_file, 'w') as f:
+                f.write(str(os.getpid()))
+        except Exception as e:
+            print(f"Warning: Could not write PID file: {e}")
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""

@@ -24,6 +24,16 @@ class URLPurger:
         self.running = True
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
+        self._write_pid()
+
+    def _write_pid(self):
+        try:
+            os.makedirs('run', exist_ok=True)
+            pid_file = os.path.join('run', 'purger.pid')
+            with open(pid_file, 'w') as f:
+                f.write(str(os.getpid()))
+        except Exception as e:
+            logger.warning(f"Could not write PID file: {e}")
 
     def signal_handler(self, sig, frame):
         logger.info("Shutting down purger...")
