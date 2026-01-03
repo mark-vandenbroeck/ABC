@@ -599,11 +599,12 @@
         <!-- Statistics Section -->
         <div id="statistics" class="section tab-content">
             <h2>Statistics</h2>
-            <div class="stats-grid" id="stats-grid"></div>
+            <div class="stats-grid" id="stats-grid-top" style="max-width: 1000px;"></div>
+            <div class="stats-grid" id="stats-grid-bottom" style="margin-top: 20px; max-width: 1000px;"></div>
 
-            <div class="stats-section">
+            <div class="stats-section" style="margin-top: 50px;">
                 <h3>URL Status per Link Distance</h3>
-                <div id="distance-status-container" style="overflow-x: auto; margin-top: 20px;">
+                <div id="distance-status-container" style="overflow-x: auto; margin-top: 20px; max-width: 1000px;">
                     <!-- Table will be injected here -->
                 </div>
             </div>
@@ -1680,53 +1681,44 @@
                 const response = await fetch('/api/stats');
                 const data = await response.json();
 
-                const grid = document.getElementById('stats-grid');
-                grid.innerHTML = `
+                const gridTop = document.getElementById('stats-grid-top');
+                const gridBottom = document.getElementById('stats-grid-bottom');
+
+                gridTop.innerHTML = `
                     <div class="stat-card">
                         <div class="stat-label">Total URLs</div>
                         <div class="stat-value">${formatNumber(data.total_urls || 0)}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">New URLs</div>
+                        <div class="stat-label">Download backlog</div>
                         <div class="stat-value">${formatNumber(data.by_status?.new || 0)}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Fetched URLs</div>
+                        <div class="stat-label">Parser backlog</div>
                         <div class="stat-value">${formatNumber(data.by_status?.fetched || 0)}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Parsed Documents</div>
-                        <div class="stat-value">${formatNumber(data.total_parsed || 0)}</div>
+                        <div class="stat-label">Indexer backlog</div>
+                        <div class="stat-value">${formatNumber(data.total_pending_index_tunes || 0)}</div>
                     </div>
+                `;
+
+                gridBottom.innerHTML = `
                     <div class="stat-card">
-                        <div class="stat-label">Contains Tunes</div>
-                        <div class="stat-value">${formatNumber(data.total_with_abc || 0)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Total Tunebooks</div>
+                        <div class="stat-label">Tunebooks</div>
                         <div class="stat-value">${formatNumber(data.total_tunebooks || 0)}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Total Tunes</div>
+                        <div class="stat-label">Tunes</div>
                         <div class="stat-value">${formatNumber(data.total_tunes || 0)}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Total Size</div>
+                        <div class="stat-label">Document size</div>
                         <div class="stat-value">${formatBytes(data.total_size_bytes || 0)}</div>
                     </div>
-                    
-                    <!-- Indexing Stats -->
-                    <div class="stat-card" style="border-top: 2px solid #007bff;">
-                        <div class="stat-label">Global FAISS Index</div>
+                    <div class="stat-card">
+                        <div class="stat-label">Index vectors</div>
                         <div class="stat-value">${formatNumber(data.faiss_index_size || 0)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Indexed Tunebooks</div>
-                        <div class="stat-value">${formatNumber(data.total_indexed_tunebooks || 0)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-label">Pending Tunes</div>
-                        <div class="stat-value">${formatNumber(data.total_pending_index_tunes || 0)}</div>
                     </div>
                 `;
 
