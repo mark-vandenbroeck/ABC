@@ -16,6 +16,25 @@ Een geavanceerd multi-process web crawler systeem gebouwd in Python, gespecializ
 - Verdeelt opdrachten over fetchers, parsers en indexers via socket-verbindingen.
 - Garandeert dat taken efficiënt en zonder conflicten worden verdeeld.
 
+## Dispatcher Strategie
+
+De Dispatcher fungeert als het "brein" van de crawler en hanteert een geavanceerde strategie om efficiëntie, beleefdheid en robuustheid te waarborgen:
+
+- **Atomiciteit & Gelijktijdigheid**: Maakt gebruik van `BEGIN IMMEDIATE` transacties en atomische SQL `UPDATE` queries. Dit garandeert dat een URL door exact één fetcher tegelijk wordt geclaimed, zelfs bij honderden gelijktijdige verzoeken.
+- **Slimme Prioritering**: 
+    - **ABC-Eerst**: URL's die eindigen op `.abc` krijgen de allerhoogste prioriteit. Deze worden direct naar de fetchers gestuurd zodra ze ontdekt zijn, ongeacht hun positie in de algemene wachtrij.
+    - **Chronologisch**: Binnen hetzelfde prioriteitsniveau worden de oudste URL's (`created_at`) als eerste verwerkt.
+- **Beleefdheid & Throttling**: 
+    - **Cooldown Period**: Implementeert een verplichte pauze (standaard 30 seconden) tussen opeenvolgende verzoeken naar dezelfde host om overbelasting van servers te voorkomen.
+    - **Uitsluiting**: Hosts die momenteel op "disabled" staan (bijv. door eerdere fouten) worden volledig overgeslagen.
+- **Fouttolerantie & Herstel**:
+    - **Retry Management**: Houdt het aantal pogingen per URL bij (maximaal 3). Na herhaalde fouten wordt een URL gemarkeerd als `error`.
+    - **Host Blokkade**: Schakelt hosts tijdelijk uit die opeenvolgende timeouts genereren, om te voorkomen dat fetchers tijd verspillen aan trage of onbereikbare sites.
+    - **Startup Recovery**: Bij het opstarten worden alle URL's die in een vorige sessie bleven hangen op `dispatched` automatisch vrijgegeven.
+    - **Liveness Checks**: URL's die langer dan 120 seconden in behandeling zijn zonder resultaat, worden automatisch teruggezet naar de wachtrij.
+- **Status Synchronisatie**: Synchroniseert de status van de hele pijplijn (`dispatched` -> `parsing` -> `indexing`) terug naar de centrale `urls` tabel voor 100% visibiliteit in de UI.
+- **Log Scanning**: Scant periodiek de fetcher-logs op DNS-fouten en blokkeert problematische hosts direct in de database.
+
 ### 2. URL Fetcher (`url_fetcher.py`)
 - Downloadt documenten en extraheert hyperlinks voor verdere crawling.
 - Respecteert `robots.txt` en past beleefdheids-vertragingen toe per host.
