@@ -368,6 +368,25 @@
             color: var(--text-main);
         }
 
+        .stat-card.highlight {
+            background: #f8faff;
+            border-color: var(--primary);
+            border-width: 1.5px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+        }
+
+        .stat-card.highlight::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--primary);
+        }
+
         .stat-meta {
             font-size: 0.75rem;
             color: var(--text-dim);
@@ -1712,7 +1731,7 @@
                         <div class="stat-label">Tunebooks</div>
                         <div class="stat-value">${formatNumber(data.total_tunebooks || 0)}</div>
                     </div>
-                    <div class="stat-card">
+                    <div class="stat-card highlight">
                         <div class="stat-label">Tunes</div>
                         <div class="stat-value">${formatNumber(data.total_tunes || 0)}</div>
                     </div>
