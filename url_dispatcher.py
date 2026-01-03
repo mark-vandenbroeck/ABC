@@ -366,6 +366,14 @@ class URLDispatcher:
                 WHERE id = ?
             ''', (status, tunebook_id))
             
+            if success:
+                # Synchronize status to the main urls table
+                cursor.execute('''
+                    UPDATE urls
+                    SET status = 'indexed'
+                    WHERE url = (SELECT url FROM tunebooks WHERE id = ?)
+                ''', (tunebook_id,))
+            
             conn.commit()
             return True
         except Exception as e:
