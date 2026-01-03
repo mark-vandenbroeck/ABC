@@ -218,6 +218,8 @@ Bereikbaar via `http://localhost:5500`. Dit paneel is voor beheerders en power-u
     - **Stop All Processes**: De rode noodknop onderaan stopt het hele systeem veilig.
 - **Statistics**: Real-time grafieken en tellers over de voortgang van de crawler en de omvang van de index.
 - **Hosts**: Beheer welke websites (domeinen) benaderd mogen worden. Je kunt hier specifieke hosts blokkeren of deblokkeren.
+- **URL Queue**: Een live overzicht van alle ontdekte links. Hier kun je filteren op status (bijv. `indexed` of `error`), MIME-type en zoeken op specifieke URLs. Je kunt hier ook individuele URLs handmatig verwijderen uit de wachtrij.
+- **Log Viewer**: Biedt direct inzicht in de werking van het systeem. Selecteer een specifiek proces (zoals `fetcher.1` of `parser_out`) om de real-time log-output te streamen. Essentieel voor het opsporen van fouten en het volgen van de crawler-activiteit.
 
 ## Architectuur & Communicatie
 
