@@ -255,8 +255,8 @@ def get_similar_tunes(tune_id):
         query_intervals = [float(x) for x in row[0].split(',') if x.strip()]
         
         # 2. FAISS Preselection (Windowed Search)
-        # Increase k to 500 to catch variations with different local phrasings
-        faiss_candidates = v_index.get_candidates(query_intervals, k=500, exclude_id=tune_id)
+        # Increase k to 1000 to ensure symmetry and catch variations in dense regions
+        faiss_candidates = v_index.get_candidates(query_intervals, k=1000, exclude_id=tune_id)
         candidate_ids = [r['tune_id'] for r in faiss_candidates]
         
         if not candidate_ids:
