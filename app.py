@@ -1027,7 +1027,7 @@ def update_host(host):
 
 # Simple cache for stats
 _stats_cache = {'data': None, 'timestamp': 0}
-_stats_cache_duration = 60 # seconds
+_stats_cache_duration = 2 # seconds
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():

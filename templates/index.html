@@ -1695,7 +1695,7 @@
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Download backlog</div>
-                        <div class="stat-value">${formatNumber(data.by_status?.new || 0)}</div>
+                        <div class="stat-value">${formatNumber((data.by_status?.new || 0) + (data.by_status?.dispatched || 0))}</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-label">Parser backlog</div>
