@@ -20,15 +20,8 @@ MAX_INTERVAL = 12
 VECTOR_LEN = 32
 
 # Logging configuration
-LOG_FILE = Path(DB_PATH).resolve().parent / 'logs' / 'indexer.log'
 logger = logging.getLogger('abc_indexer')
 logger.setLevel(logging.INFO)
-if not logger.handlers:
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    # 3 MB = 3145728 bytes
-    fh = RotatingFileHandler(LOG_FILE, maxBytes=3145728, backupCount=4)
-    fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s: %(message)s'))
-    logger.addHandler(fh)
 
 def normalize_intervals(intervals, length=None):
     """
@@ -93,11 +86,35 @@ def calculate_intervals(pitches_str, allow_repeats=False):
 class ABCIndexer:
     def __init__(self, indexer_id):
         self.indexer_id = indexer_id
+        self.setup_logging()
         self.running = True
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTERM, self.signal_handler)
         self.vector_index = VectorIndex()
         logger.info(f"Indexer {self.indexer_id} started (PID: {os.getpid()})")
+
+    def setup_logging(self):
+        """Configure logging for this specific indexer instance"""
+        log_dir = Path(DB_PATH).resolve().parent / 'logs'
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = log_dir / f'indexer.{self.indexer_id}.log'
+        
+        # Configure root logger to capture library logs
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        
+        # Clear existing handlers to avoid duplicates
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        logger.handlers = []
+        
+        # 3 MB = 3145728 bytes
+        fh = RotatingFileHandler(log_file, maxBytes=3145728, backupCount=4)
+        fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
+        root_logger.addHandler(fh)
+        
+        logger.info(f"Logging initialized for indexer {self.indexer_id}")
 
     def signal_handler(self, sig, frame):
         logger.info(f"Indexer {self.indexer_id} shutting down...")
