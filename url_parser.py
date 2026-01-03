@@ -43,6 +43,11 @@ class URLParser:
         fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
         root_logger.addHandler(fh)
         
+        # Also log to stdout so it captures into parser_out.log in app.py
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
+        root_logger.addHandler(sh)
+        
         logger.info(f"Logging initialized for parser {self.parser_id}")
 
     def signal_handler(self, sig, frame):

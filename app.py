@@ -256,6 +256,9 @@ def stream_log(filename):
         with open(log_path, 'a'): pass
 
     def generate():
+        # Yield an initial comment to open the connection immediately
+        yield ": connection started\n\n"
+        
         with open(log_path, 'r', errors='replace') as f:
             # Start near the end
             f.seek(0, os.SEEK_END)
