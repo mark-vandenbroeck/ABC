@@ -205,45 +205,32 @@ def get_tune(tune_id):
 
 def rerank_with_dtw(query_intervals, candidates, database_intervals, faiss_distances=None):
     """
-    Rerank candidates using a blend of FAISS window distance and normalized DTW.
-    FAISS distance is good for local phrase matching.
-    DTW is good for overall contour.
+    Rerank candidates using normalized DTW (Dynamic Time Warping).
+    DTW is robust against transcription variations (inserted/deleted notes).
     """
     scored = []
     q_len = len(query_intervals)
-    faiss_map = {c['tune_id']: c['distance'] for c in faiss_distances} if faiss_distances else {}
     
     for tune_id in candidates:
         if tune_id not in database_intervals:
             continue
         candidate_intervals = database_intervals[tune_id]
-        c_len = len(candidate_intervals)
         
         # dtaidistance requires numpy arrays
         try:
-            # Normalize DTW distance by the length of the shorter segment or average?
-            # Actually, dividing by query length is a good way to get "cost per note"
+            # Measure overall contour similarity
             d = dtw.distance(
                 np.array(query_intervals, dtype=np.float64),
                 np.array(candidate_intervals, dtype=np.float64),
-                window=10 # Increased window for better alignment of variations
+                window=10 
             )
             
             # Normalized DTW (cost per note)
             norm_dtw = d / q_len
             
-            # Weighted Blend: 
-            # FAISS distance is already "squared error" sum for 16 notes.
-            # norm_dtw is also related to local error.
-            # If we have a very strong FAISS match (min_dist is small), it's a strong signal.
-            f_dist = faiss_map.get(tune_id, 1000)
-            
-            # Blend: 70% FAISS (local match), 30% Normalized DTW (global contour)
-            # We normalize FAISS by window size to get comparable "cost per note" scale
-            f_cost = f_dist / 16.0
-            
-            final_score = (f_cost * 0.7) + (norm_dtw * 0.3)
-            scored.append((tune_id, final_score))
+            # We use pure DTW for the final rank as it's more robust than windowed FAISS L2
+            # for different transcriptions of the same melody.
+            scored.append((tune_id, norm_dtw))
             
         except Exception as e:
             print(f"DTW error for tune {tune_id}: {e}")
@@ -253,7 +240,7 @@ def rerank_with_dtw(query_intervals, candidates, database_intervals, faiss_dista
 
 @app.route('/api/tune/<int:tune_id>/similar')
 def get_similar_tunes(tune_id):
-    """Find similar tunes using FAISS preselection and DTW reranking"""
+    """Find similar tunes using expanded FAISS preselection and DTW reranking"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -268,8 +255,8 @@ def get_similar_tunes(tune_id):
         query_intervals = [float(x) for x in row[0].split(',') if x.strip()]
         
         # 2. FAISS Preselection (Windowed Search)
-        # Use the new get_candidates method which handles query windowing and deduplication
-        faiss_candidates = v_index.get_candidates(query_intervals, k=100, exclude_id=tune_id)
+        # Increase k to 500 to catch variations with different local phrasings
+        faiss_candidates = v_index.get_candidates(query_intervals, k=500, exclude_id=tune_id)
         candidate_ids = [r['tune_id'] for r in faiss_candidates]
         
         if not candidate_ids:
