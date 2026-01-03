@@ -213,7 +213,7 @@ Get a paginated list of URLs.
 **Query Parameters:**
 - `page` (optional, default: 1): Page number
 - `per_page` (optional, default: 50): Items per page
-- `status` (optional): Filter by status ('', 'dispatched', 'fetched', 'parsing', 'parsed', 'error')
+- `status` (optional): Filter by status ('', 'dispatched', 'fetched', 'parsing', 'parsed', 'indexed', 'error')
 - `host` (optional): Filter by hostname
 - `mime_type` (optional): Filter by MIME type
 - `has_abc` (optional): Filter by ABC content presence (true/false)
@@ -475,6 +475,7 @@ Get overall crawler statistics.
     "fetched": 200,
     "parsing": 50,
     "parsed": 4500,
+    "indexed": 549,
     "error": 150
   },
   "total_size_bytes": 1234567890,
@@ -516,4 +517,4 @@ Common HTTP status codes:
 - All timestamps are in the format `YYYY-MM-DD HH:MM:SS`
 - The API uses JSON for request and response bodies
 - Process management endpoints require the Flask app to have permissions to start/stop processes
-- URL status flow: `''` (new) → `dispatched` → `fetched` → `parsing` → `parsed`
+- URL status flow: `''` (new) → `dispatched` → `fetched` → `parsing` → `parsed` → `indexed`

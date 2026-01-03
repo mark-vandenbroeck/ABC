@@ -72,6 +72,9 @@ graph TD
 
     Web -.-> |Download| F
     T -.-> |Sync| FAISS
+    
+    style I fill:#f9f,stroke:#333Internal,stroke-width:2px
+    style FAISS fill:#bbf,stroke:#333VectorIndex,stroke-width:2px
 ```
 
 ## Database Schema
@@ -112,6 +115,7 @@ erDiagram
         string url
         string status
         timestamp created_at
+        timestamp dispatched_at
     }
 
     tunes {
@@ -135,9 +139,9 @@ erDiagram
 
 ### Belangrijkste Tabellen
 
-- **`urls`**: De centrale tabel voor alle gecrawlde en nog te crawlen links. Bevat de ruwe content (document) en status.
+- **`urls`**: De centrale tabel voor alle gecrawlde en nog te crawlen links. Bevat de ruwe content (document) en status. Statussen: `''` (nieuw), `dispatched`, `fetched`, `parsing`, `parsed`, `indexed`, `error`.
 - **`hosts`**: Houdt per host de `last_access` bij voor rate-limiting en DNS status.
-- **`tunebooks`**: Groepeert tunes die van dezelfde bron-URL komen. De `status` kolom geeft aan of de tunes al geëxtraheerd zijn.
+- **`tunebooks`**: Groepeert tunes die van dezelfde bron-URL komen. De `status` kolom geeft aan of de tunes al geëxtraheerd zijn. (Statussen: `''`, `indexing`, `indexed`).
 - **`tunes`**: Bevat de muzikale metadata en de berekende `pitches` en `intervals`.
 - **`faiss_mapping`**: De koppeling tussen de interne ID's van de FAISS index en de `tune_id` in SQLite.
 
@@ -151,7 +155,10 @@ make start
 
 2. Web Interfaces:
 - **Management Dashboard (`http://localhost:5500`)**: Beheer van processen (fetchers, parsers, indexers), bekijk crawler statistieken en configureer filters.
-    - **Nieuw**: Process Control pagina is herontworpen met een overzichtelijke 2-koloms layout.
+    - **Nieuw**: Statussen in de wachtrij lopen nu door tot **"indexed"**, zodat je precies ziet wanneer een URL volledig verwerkt is.
+    - **Nieuw**: Robuuste timeout-logica zorgt dat vastgelopen "dispatched" URLs automatisch worden vrijgegeven.
+    - **Nieuw**: Individuele log-files per worker proces zijn direct in de UI te bekijken.
+    - De interface ververst elke 3 seconden voor een vlot resultaat zonder de database te overbelasten.
 - **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers.
     - **Nieuw**: Zoek op Tune ID (bijv. `77277`).
     - **Nieuw**: "Vind gelijkaardige melodieën" knop maakt gebruik van FAISS (snelle voorselectie) en DTW (precieze ranking) om muzikale variaties te vinden.
