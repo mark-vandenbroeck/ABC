@@ -198,7 +198,7 @@ class URLDispatcher:
                   AND (u.retries IS NULL OR u.retries < 3)
                   AND (h.disabled IS NULL OR h.disabled = 0)
                   AND (h.last_access IS NULL OR h.last_access <= datetime('now', ?))
-                ORDER BY u.created_at ASC
+                ORDER BY (u.url LIKE '%.abc') DESC, u.created_at ASC
                 LIMIT ?
             ''', (timeout_param, cooldown_param, batch_size))
 
