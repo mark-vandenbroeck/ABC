@@ -565,23 +565,6 @@
                     </div>
                 </div>
 
-                <!-- Purger Card -->
-                <div class="process-card">
-                    <h3>URL Purger
-                        <span id="purger-status" class="status stopped">Stopped</span>
-                    </h3>
-                    <div style="margin-top: 15px;">
-                        <button id="start-purger-btn" class="button success" onclick="startPurger()">Start
-                            Purger</button>
-                        <button id="stop-purger-btn" class="button danger" onclick="stopPurger()"
-                            style="display:none;">Stop
-                            Purger</button>
-                    </div>
-                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">Cleans up database every 60 seconds
-                        (Refused
-                        extensions & DNS errors).</p>
-                </div>
-
                 <!-- Fetchers Card -->
                 <div class="process-card">
                     <h3>Fetchers</h3>
@@ -601,6 +584,23 @@
                     <h3>Indexers</h3>
                     <div id="indexers-list" style="margin-top: 15px; min-height: 20px;"></div>
                     <button class="button success" onclick="addIndexer()" style="margin-top: 10px;">Add Indexer</button>
+                </div>
+
+                <!-- Purger Card -->
+                <div class="process-card">
+                    <h3>URL Purger
+                        <span id="purger-status" class="status stopped">Stopped</span>
+                    </h3>
+                    <div style="margin-top: 15px;">
+                        <button id="start-purger-btn" class="button success" onclick="startPurger()">Start
+                            Purger</button>
+                        <button id="stop-purger-btn" class="button danger" onclick="stopPurger()"
+                            style="display:none;">Stop
+                            Purger</button>
+                    </div>
+                    <p style="font-size: 0.9em; color: #666; margin-top: 10px;">Cleans up database every 60 seconds
+                        (Refused
+                        extensions & DNS errors).</p>
                 </div>
             </div>
 
@@ -1713,7 +1713,7 @@
                         <div class="stat-value">${formatNumber(data.total_urls || 0)}</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-label">Download backlog</div>
+                        <div class="stat-label">Fetcher backlog</div>
                         <div class="stat-value">${formatNumber((data.by_status?.new || 0) + (data.by_status?.dispatched || 0))}</div>
                     </div>
                     <div class="stat-card">
