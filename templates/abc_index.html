@@ -225,6 +225,20 @@
             font-weight: 600;
             margin-bottom: 12px;
             color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .tune-id {
+            font-size: 0.75rem;
+            font-weight: 400;
+            color: var(--text-dim);
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
         }
 
         .tune-meta {
@@ -640,7 +654,10 @@
                 card.className = 'tune-card';
                 card.style.animationDelay = `${Math.random() * 0.5}s`;
                 card.innerHTML = `
-                    <h3>${tune.title}</h3>
+                    <h3>
+                        ${tune.title}
+                        <span class="tune-id">#${tune.id}</span>
+                    </h3>
                     <div class="tune-meta">
                         <div class="badge">Key: <b>${tune.key || '-'}</b></div>
                         <div class="badge">Ritme: <b>${tune.rhythm || '-'}</b></div>
