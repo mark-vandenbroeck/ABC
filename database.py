@@ -173,6 +173,12 @@ def init_database():
         except Exception:
             pass
 
+    if 'dispatched_at' not in tunebook_cols:
+        try:
+            cursor.execute('ALTER TABLE tunebooks ADD COLUMN dispatched_at TIMESTAMP')
+        except Exception:
+            pass
+
     # Tunes table for storing individual ABC tunes
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS tunes (

@@ -170,13 +170,13 @@ class URLDispatcher:
                 SELECT u.id, u.url, u.host, COALESCE(u.link_distance, 0) as link_distance
                 FROM urls u
                 LEFT JOIN hosts h ON u.host = h.host
-                WHERE u.status = ''
+                WHERE (u.status = '' OR (u.status = 'dispatched' AND u.dispatched_at <= datetime('now', ?)))
                   AND (u.retries IS NULL OR u.retries < 3)
                   AND (h.disabled IS NULL OR h.disabled = 0)
                   AND (h.last_access IS NULL OR h.last_access <= datetime('now', ?))
                 ORDER BY u.created_at ASC
                 LIMIT ?
-            ''', (cooldown_param, batch_size))
+            ''', (timeout_param, cooldown_param, batch_size))
 
             candidates = cursor.fetchall()
             if not candidates:
@@ -191,7 +191,7 @@ class URLDispatcher:
                     cursor.execute('''
                         UPDATE urls
                         SET status = 'dispatched', dispatched_at = CURRENT_TIMESTAMP
-                        WHERE id = ? AND status = ''
+                        WHERE id = ? AND (status = '' OR status = 'dispatched')
                     ''', (url_id,))
 
                     if cursor.rowcount == 0:
@@ -321,7 +321,7 @@ class URLDispatcher:
                 SELECT id
                 FROM tunebooks
                 WHERE status = ''
-                   OR (status = 'indexing' AND created_at <= datetime('now', ?))
+                   OR (status = 'indexing' AND (dispatched_at IS NULL OR dispatched_at <= datetime('now', ?)))
                 ORDER BY created_at ASC
                 LIMIT 1
             ''', (timeout_param,))
@@ -336,7 +336,7 @@ class URLDispatcher:
             # Mark as indexing
             cursor.execute('''
                 UPDATE tunebooks
-                SET status = 'indexing'
+                SET status = 'indexing', dispatched_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             ''', (tunebook_id,))
             
