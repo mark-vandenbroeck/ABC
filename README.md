@@ -55,26 +55,34 @@ graph TD
         Web["WWW (ABC Sources)"]
     end
 
-    subgraph "Crawling & Parsing"
+    subgraph "Crawling & Clean-up"
         D[Dispatcher] <--> F[Fetchers]
+        D <--> PU[Purger]
         F --> |HTML/ABC| U[(URLs Table)]
-        D <--> P[Parsers]
-        P --> |ABC Header/Body| T[(Tunes Table)]
+        PU -.-> |Clean-up| U
+        PU -.-> |Clean-up| H[(Hosts Table)]
     end
 
-    subgraph "Indexing & Search"
+    subgraph "Parsing & Indexing"
+        D <--> P[Parsers]
+        P --> |New Tunebook| TB[(Tunebooks Table)]
         D <--> I[Indexers]
-        I --> |Pitch Intervals| T
+        I --> |Pitch Intervals| T[(Tunes Table)]
+        TB -.-> |To Index| I
+    end
+
+    subgraph "Search & UI"
         A[Flask app] --> |Background Sync| FAISS[FAISS HNSW Index]
         A --> |Search Query| FAISS
         U_UI[Web Interface] <--> A
+        T -.-> |Sync| FAISS
     end
 
     Web -.-> |Download| F
-    T -.-> |Sync| FAISS
     
-    style I fill:#f9f,stroke:#333Internal,stroke-width:2px
-    style FAISS fill:#bbf,stroke:#333VectorIndex,stroke-width:2px
+    style PU fill:#fdb,stroke:#333
+    style TB fill:#dfd,stroke:#333
+    style FAISS fill:#bbf,stroke:#333
 ```
 
 ## Database Schema
