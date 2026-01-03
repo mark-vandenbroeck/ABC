@@ -47,6 +47,9 @@ class URLDispatcher:
         self._log_pos = 0
         self._log_thread = threading.Thread(target=self._log_scanner_loop, daemon=True)
         self._log_thread.start()
+
+        # Release stale URLs on startup
+        self._reset_stale_urls()
     
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
@@ -139,7 +142,28 @@ class URLDispatcher:
                 print(f"Log scanner error: {e}")
                 time.sleep(interval_seconds)
 
-    def get_next_url(self, batch_size=100, dispatch_timeout_seconds=300, host_cooldown_seconds=30):
+    def _reset_stale_urls(self, timeout_seconds=300):
+        """Release URLs that were stuck in dispatched/parsing/indexing state from a previous session."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            # Reset anything that was dispatched more than 'timeout_seconds' ago
+            # or anything that doesn't have a dispatched_at at all but has a transient status
+            cur.execute('''
+                UPDATE urls 
+                SET status = '', dispatched_at = NULL 
+                WHERE (status = 'dispatched' OR status = 'parsing' OR status = 'indexing')
+                AND (dispatched_at IS NULL OR dispatched_at <= datetime('now', ?))
+            ''', (f'-{timeout_seconds} seconds',))
+            count = cur.rowcount
+            conn.commit()
+            conn.close()
+            if count > 0:
+                print(f"Recovered {count} stale URLs on startup")
+        except Exception as e:
+            print(f"Error resetting stale URLs: {e}")
+
+    def get_next_url(self, batch_size=100, dispatch_timeout_seconds=120, host_cooldown_seconds=30):
         """Get the next URL to process (oldest created, not yet fetched, or dispatched but timed out),
         using an SQL filter that joins `hosts` so we exclude URLs whose host has been accessed within
         the cooldown window.
