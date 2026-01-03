@@ -294,7 +294,23 @@ class URLFetcher:
             else:
                 payload = result_data
 
-            sock.send(json.dumps(payload).encode('utf-8'))
+            sock.sendall(json.dumps(payload).encode('utf-8'))
+            
+            # Wait for acknowledgment
+            try:
+                response_data = sock.recv(1024).decode('utf-8')
+                if response_data:
+                    response = json.loads(response_data)
+                    if response.get('status') == 'ok':
+                        # Success!
+                        pass
+                    else:
+                        print(f"Dispatcher returned non-ok status: {response}")
+                else:
+                    print(f"Empty acknowledgment from dispatcher for URL {result_data.get('url_id')}")
+            except Exception as e:
+                print(f"Error receiving acknowledgment: {e}")
+
             sock.close()
         except Exception as e:
             print(f"Error submitting result: {e}")

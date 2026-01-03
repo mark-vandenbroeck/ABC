@@ -435,7 +435,7 @@ class URLDispatcher:
                 else:
                     response = {'status': 'no_urls'}
                 
-                client_socket.send(json.dumps(response).encode('utf-8'))
+                client_socket.sendall(json.dumps(response).encode('utf-8'))
 
                 # We do NOT wait for the result here anymore. 
                 # The fetcher will reconnect to submit the result.
@@ -454,7 +454,7 @@ class URLDispatcher:
                     response = {'status': 'no_urls'}
                 
                 # Send response with newline as parser expects readline()
-                client_socket.send((json.dumps(response) + '\n').encode('utf-8'))
+                client_socket.sendall((json.dumps(response) + '\n').encode('utf-8'))
                 
                 if urls:
                     # Expect submit_parsed_result from parser
@@ -479,7 +479,7 @@ class URLDispatcher:
                             if result_req.get('action') == 'submit_parsed_result':
                                 self._handle_parsed_result(result_req)
                                 # Send ACK
-                                client_socket.send(b'ack\n')
+                                client_socket.sendall(b'ack\n')
                                 processed_count += 1
                         except socket.timeout:
                             break
@@ -490,7 +490,7 @@ class URLDispatcher:
             elif action == 'submit_parsed_result':
                  # --- PARSER: Submit Result (Standalone) ---
                  self._handle_parsed_result(request)
-                 client_socket.send(b'ack\n')
+                 client_socket.sendall(b'ack\n')
             
             elif action == 'get_tunebook':
                 # --- INDEXER: Request tunebook ---
@@ -499,7 +499,7 @@ class URLDispatcher:
                     response = {'status': 'ok', 'tunebook_id': tunebook_id}
                 else:
                     response = {'status': 'empty'}
-                client_socket.send(json.dumps(response).encode('utf-8'))
+                client_socket.sendall(json.dumps(response).encode('utf-8'))
             
             elif action == 'submit_indexed_result':
                 # --- INDEXER: Submit indexing result ---
@@ -511,14 +511,14 @@ class URLDispatcher:
                 else:
                     self.mark_tunebook_indexed(tunebook_id, success)
                     response = {'status': 'ok'}
-                client_socket.send(json.dumps(response).encode('utf-8'))
+                client_socket.sendall(json.dumps(response).encode('utf-8'))
 
 
         except Exception as e:
             print(f"Error handling client request: {e}")
             try:
                 error_response = {'status': 'error', 'message': str(e)}
-                client_socket.send(json.dumps(error_response).encode('utf-8'))
+                client_socket.sendall(json.dumps(error_response).encode('utf-8'))
             except:
                 pass
         finally:
@@ -636,7 +636,7 @@ class URLDispatcher:
 
             # Reply OK to fetcher so it continues
             try:
-                client_socket.send(json.dumps({'status': 'ok'}).encode('utf-8'))
+                client_socket.sendall(json.dumps({'status': 'ok'}).encode('utf-8'))
             except: pass
 
             # Host disabling logic for network/dns/timeout
@@ -665,7 +665,7 @@ class URLDispatcher:
             # Success
             self.mark_url_fetched(url_id, size_bytes, mime_type, document, http_status)
             try:
-                 client_socket.send(json.dumps({'status': 'ok'}).encode('utf-8'))
+                 client_socket.sendall(json.dumps({'status': 'ok'}).encode('utf-8'))
             except: pass
     
     def run(self):

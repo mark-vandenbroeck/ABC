@@ -199,7 +199,7 @@ class ABCIndexer:
             sock.settimeout(5.0)
             sock.connect((DISPATCHER_HOST, DISPATCHER_PORT))
             
-            sock.send(json.dumps(request).encode('utf-8'))
+            sock.sendall(json.dumps(request).encode('utf-8'))
             
             # Receive response (handle possible multiple chunks)
             chunks = []
