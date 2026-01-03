@@ -88,6 +88,18 @@ class URLPurger:
                 conn.commit()
                 time.sleep(0.1)
 
+            # 3b. Re-enable hosts that were disabled due to 'timeout' after 24 hours
+            cursor.execute('''
+                UPDATE hosts 
+                SET disabled = 0, disabled_reason = NULL 
+                WHERE disabled = 1 AND disabled_reason = 'timeout' 
+                AND disabled_at <= datetime('now', '-24 hours')
+            ''')
+            if cursor.rowcount > 0:
+                logger.info(f"Purger: Re-enabled {cursor.rowcount} timed-out hosts for retry")
+                conn.commit()
+                time.sleep(0.1)
+
             # 4. Erase document content for parsed URLs without tunes in small batches
             while True:
                 # Use the optimized idx_urls_purger_cleanup index
