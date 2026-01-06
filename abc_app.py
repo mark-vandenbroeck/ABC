@@ -95,12 +95,23 @@ def search_tunes():
             sql += ' AND t.composer LIKE ?'
             params.append(f'%{composer}%')
 
+        ids_filter = request.args.get('ids', '').strip()
+        if ids_filter:
+            try:
+                id_list = [int(i) for i in ids_filter.split(',') if i.strip()]
+                if id_list:
+                    placeholders = ', '.join(['?'] * len(id_list))
+                    sql += f' AND t.id IN ({placeholders})'
+                    params.extend(id_list)
+            except ValueError:
+                pass
+
         status_filter = request.args.get('status', '').strip()
         if status_filter:
             sql += ' AND t.status = ?'
             params.append(status_filter)
-        else:
-            # Default to only showing parsed tunes unless specifically requested
+        elif not ids_filter:
+            # Default to only showing parsed tunes unless specifically requested or searching by IDs
             sql += " AND t.status = 'parsed'"
             
         # Get total count for pagination

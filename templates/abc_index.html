@@ -71,6 +71,69 @@
             overflow-x: hidden;
         }
 
+        .lang-switcher {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        .lang-btn {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 5px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .lang-btn.active {
+            color: white;
+            border-color: var(--primary);
+            background: var(--primary);
+        }
+
+        .favorite-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            padding: 5px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .favorite-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .favorite-btn.active {
+            color: #f87171;
+        }
+
+        .favorite-btn.active svg {
+            fill: #f87171;
+        }
+
+        .tune-card .favorite-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 2;
+            background: var(--glass);
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--border);
+        }
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -423,51 +486,134 @@
                 border-radius: 20px;
             }
         }
+
+        /* Print styles */
+        @media print {
+            body {
+                background: white;
+                color: black;
+            }
+
+            .container,
+            .search-container,
+            footer,
+            .search-actions,
+            #pagination-load-more,
+            .close-modal,
+            .tune-footer,
+            .btn-primary,
+            .btn-secondary,
+            #audio-controls,
+            #similar-tunes-section,
+            #raw-abc-view,
+            .tune-meta,
+            #modal-history,
+            #modal-link,
+            #midi-program,
+            label[for="midi-program"] {
+                display: none !important;
+            }
+
+            .modal {
+                position: static;
+                display: block;
+                background: transparent;
+                padding: 0;
+            }
+
+            .modal-content {
+                max-width: 100%;
+                border: none;
+                padding: 0;
+                background: transparent;
+                box-shadow: none;
+                overflow: visible;
+            }
+
+            .abc-paper {
+                padding: 0;
+                margin: 0;
+                border: none;
+            }
+
+            #modal-title {
+                color: black;
+                margin-bottom: 20px;
+                text-align: center;
+                display: block !important;
+            }
+
+            #abc-view {
+                display: block !important;
+            }
+
+            h4 {
+                display: none !important;
+            }
+        }
     </style>
 </head>
 
 <body>
     <div class="container">
+        <div class="lang-switcher">
+            <button class="lang-btn" id="lang-nl" onclick="setLanguage('nl')">NL</button>
+            <button class="lang-btn" id="lang-en" onclick="setLanguage('en')">EN</button>
+        </div>
         <header>
-            <h1>ABC Music Explorer</h1>
-            <p>Vind traditionele tunes uit de grootste online collectie tunebooks.</p>
+            <h1 data-i18n="app-title">ABC Music Explorer</h1>
+            <p data-i18n="app-subtitle">Vind traditionele tunes uit de grootste online collectie tunebooks.</p>
         </header>
 
         <section class="search-container">
             <div class="search-grid">
                 <div class="input-group">
-                    <label>Algemene zoekterm</label>
-                    <input type="text" id="q-search" placeholder="Titel, componist of trefwoord...">
+                    <label data-i18n="label-search">Algemene zoekterm</label>
+                    <input type="text" id="q-search" data-i18n-placeholder="placeholder-search"
+                        placeholder="Titel, componist of trefwoord...">
                 </div>
                 <div class="input-group">
-                    <label>Toonsoort (Key)</label>
+                    <label data-i18n="label-key">Toonsoort (Key)</label>
                     <select id="key-search">
-                        <option value="">Alle toonsoorten</option>
+                        <option value="" data-i18n="opt-all-keys">Alle toonsoorten</option>
                     </select>
                 </div>
                 <div class="input-group">
-                    <label>Ritme (Rhythm)</label>
+                    <label data-i18n="label-rhythm">Ritme (Rhythm)</label>
                     <select id="rhythm-search">
-                        <option value="">Alle ritmes</option>
+                        <option value="" data-i18n="opt-all-rhythms">Alle ritmes</option>
                     </select>
                 </div>
                 <div class="input-group">
-                    <label>Maatsoort (Meter)</label>
+                    <label data-i18n="label-meter">Maatsoort (Meter)</label>
                     <select id="meter-search">
-                        <option value="">Alle maatsoorten</option>
+                        <option value="" data-i18n="opt-all-meters">Alle maatsoorten</option>
                     </select>
                 </div>
                 <div class="input-group">
-                    <label>Componist</label>
-                    <input type="text" id="composer-search" placeholder="Naam...">
+                    <label data-i18n="label-composer">Componist</label>
+                    <input type="text" id="composer-search" data-i18n-placeholder="placeholder-name"
+                        placeholder="Naam...">
                 </div>
                 <div class="input-group">
-                    <label>Status</label>
-                    <select id="status-search">
-                        <option value="parsed">Geparsed (Normaal)</option>
-                        <option value="skipped">Overgeslagen (Skip)</option>
-                        <option value="">Alle</option>
-                    </select>
+                    <label data-i18n="label-status">Status</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <select id="status-search" style="flex: 1;">
+                            <option value="parsed" data-i18n="opt-status-parsed">Geparsed (Normaal)</option>
+                            <option value="skipped" data-i18n="opt-status-skipped">Overgeslagen (Skip)</option>
+                            <option value="" data-i18n="opt-all">Alle</option>
+                        </select>
+                        <button id="fav-filter-btn" onclick="toggleFavoriteFilter()" class="btn-secondary"
+                            style="padding: 10px; min-width: 44px; display: flex; align-items: center; justify-content: center;"
+                            title="Toon alleen favorieten">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2">
+                                <path
+                                    d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z">
+                                </path>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="search-actions">
@@ -477,9 +623,9 @@
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
-                    Zoeken
+                    <span data-i18n="btn-search">Zoeken</span>
                 </button>
-                <button class="btn-secondary" onclick="clearFilters()">Wissen</button>
+                <button class="btn-secondary" onclick="clearFilters()" data-i18n="btn-clear">Wissen</button>
             </div>
         </section>
 
@@ -490,37 +636,50 @@
                     <circle cx="11" cy="11" r="8"></circle>
                     <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                 </svg>
-                <p>Start je zoektocht naar melodieën...</p>
+                <p data-i18n="empty-msg">Start je zoektocht naar melodieën...</p>
             </div>
         </main>
 
         <div id="pagination-load-more" style="text-align:center; margin-top: 50px; display: none;">
-            <button class="btn-secondary" onclick="loadMore()">Laad meer resultaten</button>
+            <button class="btn-secondary" onclick="loadMore()" data-i18n="btn-load-more">Laad meer resultaten</button>
         </div>
     </div>
 
     <!-- Modal for details -->
     <div id="tune-modal" class="modal">
         <div class="modal-content">
-            <button class="close-modal" onclick="closeModal()">×</button>
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <h2 id="modal-title" style="margin: 0;"></h2>
+                    <button class="favorite-btn" id="modal-fav-btn" style="padding: 0;" title="Voeg toe aan favorieten">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path
+                                d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
             <div id="modal-details">
-                <h2 id="modal-title" style="font-size: 2rem; margin-bottom: 10px;"></h2>
                 <div id="modal-meta" class="tune-meta"></div>
 
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 25px;">
                     <div
                         style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-                        <h4
+                        <h4 data-i18n="modal-info-title"
                             style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
                             Informatie</h4>
                         <p id="modal-history" style="font-size: 0.95rem; color: var(--text-dim);"></p>
                     </div>
                     <div
                         style="background: rgba(0,0,0,0.2); padding: 20px; border-radius: 12px; border: 1px solid var(--border);">
-                        <h4
+                        <h4 data-i18n="modal-source-title"
                             style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
                             Bron</h4>
-                        <a id="modal-link" href="#" target="_blank" class="btn-text">Open originele tunebook</a>
+                        <a id="modal-link" href="#" target="_blank" class="btn-text" data-i18n="btn-open-source">Open
+                            originele tunebook</a>
                     </div>
                 </div>
 
@@ -528,17 +687,18 @@
                 <div style="margin-top: 25px;">
                     <div
                         style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 style="color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin: 0;">
+                        <h4 data-i18n="modal-audio-title"
+                            style="color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin: 0;">
                             Audio Speler</h4>
                         <div style="display: flex; align-items: center; gap: 10px;">
-                            <label for="midi-program"
+                            <label for="midi-program" data-i18n="modal-instrument-label"
                                 style="font-size: 0.85rem; color: var(--text-dim);">Instrument:</label>
                             <select id="midi-program" onchange="updateInstrument()"
                                 style="background: #0f172a; color: white; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 0.85rem; cursor: pointer; outline: none;">
-                                <option value="0">Piano</option>
-                                <option value="40">Viool</option>
-                                <option value="73">Fluit</option>
-                                <option value="21" selected>Accordeon</option>
+                                <option value="0" data-i18n="instrument-piano">Piano</option>
+                                <option value="40" data-i18n="instrument-violin">Viool</option>
+                                <option value="73" data-i18n="instrument-flute">Fluit</option>
+                                <option value="21" selected data-i18n="instrument-accordion">Accordeon</option>
                             </select>
                         </div>
                     </div>
@@ -546,21 +706,61 @@
                 </div>
 
                 <div style="margin-top: 25px;">
-                    <h4 style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
+                    <h4 data-i18n="modal-score-title"
+                        style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
                         Partituur</h4>
                     <div id="abc-view" class="abc-paper"></div>
                 </div>
 
-                <div style="margin-top: 20px;">
-                    <button class="btn-primary" style="width: 100%; justify-content: center;" onclick="downloadABC()">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+                    <button class="btn-primary" style="justify-content: center;" onclick="downloadABC()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                             <polyline points="7 10 12 15 17 10"></polyline>
                             <line x1="12" y1="15" x2="12" y2="3"></line>
                         </svg>
-                        Download ABC
+                        ABC
                     </button>
+                    <button class="btn-primary" style="justify-content: center; background: #8b5cf6;"
+                        onclick="downloadMIDI()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <path d="M9 18V5l12-2v13"></path>
+                            <circle cx="6" cy="18" r="3"></circle>
+                            <circle cx="18" cy="16" r="3"></circle>
+                        </svg>
+                        MIDI
+                    </button>
+                    <button class="btn-primary" style="justify-content: center; background: #ec4899;"
+                        onclick="printScore()">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2">
+                            <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                            <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                            <rect x="6" y="14" width="12" height="8"></rect>
+                        </svg>
+                        PDF
+                    </button>
+                </div>
+
+                <div style="margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 data-i18n="modal-transpose-title"
+                            style="color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin: 0;">
+                            Transponeren</h4>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px;"
+                                onclick="transposeTune(-1)">-1</button>
+                            <span id="transpose-value"
+                                style="font-weight: 600; min-width: 30px; text-align: center;">0</span>
+                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px;"
+                                onclick="transposeTune(1)">+1</button>
+                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px; font-size: 0.8rem;"
+                                onclick="transposeTune(0)" data-i18n="btn-reset">Reset</button>
+                        </div>
+                    </div>
                 </div>
 
                 <div style="margin-top: 15px;">
@@ -572,12 +772,13 @@
                             <circle cx="11" cy="11" r="8"></circle>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
-                        Vind gelijkaardige melodieën
+                        <span data-i18n="btn-find-similar">Vind gelijkaardige melodieën</span>
                     </button>
                 </div>
 
                 <div id="similar-tunes-section" style="margin-top: 30px; display: none;">
-                    <h4 style="color: var(--accent); margin-bottom:15px; font-size: 0.8rem; text-transform: uppercase;">
+                    <h4 data-i18n="modal-similar-title"
+                        style="color: var(--accent); margin-bottom:15px; font-size: 0.8rem; text-transform: uppercase;">
                         Gelijkaardige Melodieën (gebaseerd op melodie)</h4>
                     <div id="similar-tunes-list" style="display: grid; gap: 10px;">
                         <!-- Similar results will appear here -->
@@ -585,7 +786,8 @@
                 </div>
 
                 <div style="margin-top: 25px;">
-                    <h4 style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
+                    <h4 data-i18n="modal-abc-title"
+                        style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
                         ABC Broncode</h4>
                     <pre id="raw-abc-view"
                         style="background: #0f172a; color: #10b981; padding: 20px; border-radius: 12px; border: 1px solid var(--border); font-family: 'Courier New', monospace; font-size: 0.95rem; overflow-x: auto; white-space: pre-wrap; line-height: 1.4;"></pre>
@@ -597,16 +799,243 @@
     <script>
         let currentOffset = 0;
         const limitSize = 20;
-        let currentData = [];
         let activeTuneAbc = "";
+        let currentTranspose = 0;
         let synthControl = null;
         let currentVisualObj = null;
         let currentMidiBuffer = null;
+        let currentLang = localStorage.getItem('abc_lang') || 'nl';
+        let favorites = new Set(JSON.parse(localStorage.getItem('abc_favorites') || '[]'));
+        let showFavoritesOnly = false;
+
+        const translations = {
+            'nl': {
+                'app-title': 'ABC Music Explorer',
+                'app-subtitle': 'Vind traditionele tunes uit de grootste online collectie tunebooks.',
+                'label-search': 'Algemene zoekterm',
+                'placeholder-search': 'Titel, componist of trefwoord...',
+                'label-key': 'Toonsoort (Key)',
+                'opt-all-keys': 'Alle toonsoorten',
+                'label-rhythm': 'Ritme (Rhythm)',
+                'opt-all-rhythms': 'Alle ritmes',
+                'label-meter': 'Maatsoort (Meter)',
+                'opt-all-meters': 'Alle maatsoorten',
+                'label-composer': 'Componist',
+                'placeholder-name': 'Naam...',
+                'label-status': 'Status',
+                'opt-status-parsed': 'Geparsed (Normaal)',
+                'opt-status-skipped': 'Overgeslagen (Skip)',
+                'opt-all': 'Alle',
+                'btn-search': 'Zoeken',
+                'btn-clear': 'Wissen',
+                'empty-msg': 'Start je zoektocht naar melodieën...',
+                'btn-load-more': 'Laad meer resultaten',
+                'modal-info-title': 'Informatie',
+                'modal-source-title': 'Bron',
+                'btn-open-source': 'Open originele tunebook',
+                'modal-audio-title': 'Audio Speler',
+                'modal-instrument-label': 'Instrument:',
+                'instrument-piano': 'Piano',
+                'instrument-violin': 'Viool',
+                'instrument-flute': 'Fluit',
+                'instrument-accordion': 'Accordeon',
+                'modal-score-title': 'Partituur',
+                'modal-transpose-title': 'Transponeren',
+                'btn-reset': 'Reset',
+                'btn-find-similar': 'Vind gelijkaardige melodieën',
+                'modal-similar-title': 'Gelijkaardige Melodieën (gebaseerd op melodie)',
+                'modal-abc-title': 'ABC Broncode',
+                'loading': 'Laden...',
+                'no-results': 'Geen tunes gevonden die aan je criteria voldoen.',
+                'error-search': 'Er is iets fout gegaan bij het zoeken.',
+                'error-details': 'Tune details konden niet worden geladen.',
+                'error-similar': 'Kon gelijkaardige melodieën niet laden.',
+                'searching-similar': 'Zoeken naar gelijkaardige melodieën...',
+                'view-melody': 'Bekijk melodie',
+                'key-label': 'Key',
+                'rhythm-label': 'Ritme',
+                'meter-label': 'Maat',
+                'tempo-label': 'Tempo',
+                'composer-label': 'Componist',
+                'composer-short': 'Door',
+                'skipped-label': 'Overgeslagen',
+                'no-extra-info': 'Geen extra informatie beschikbaar.',
+                'audio-not-supported': 'Audio wordt niet ondersteund in deze browser.',
+                'score': 'Score',
+                'fav-only': 'Alleen favorieten'
+            },
+            'en': {
+                'app-title': 'ABC Music Explorer',
+                'app-subtitle': 'Find traditional tunes from the largest online collection of tunebooks.',
+                'label-search': 'General search term',
+                'placeholder-search': 'Title, composer or keyword...',
+                'label-key': 'Key',
+                'opt-all-keys': 'All keys',
+                'label-rhythm': 'Rhythm',
+                'opt-all-rhythms': 'All rhythms',
+                'label-meter': 'Meter',
+                'opt-all-meters': 'All meters',
+                'label-composer': 'Composer',
+                'placeholder-name': 'Name...',
+                'label-status': 'Status',
+                'opt-status-parsed': 'Parsed (Normal)',
+                'opt-status-skipped': 'Skipped (Skip)',
+                'opt-all': 'All',
+                'btn-search': 'Search',
+                'btn-clear': 'Clear',
+                'empty-msg': 'Start your search for melodies...',
+                'btn-load-more': 'Load more results',
+                'modal-info-title': 'Information',
+                'modal-source-title': 'Source',
+                'btn-open-source': 'Open original tunebook',
+                'modal-audio-title': 'Audio Player',
+                'modal-instrument-label': 'Instrument:',
+                'instrument-piano': 'Piano',
+                'instrument-violin': 'Violin',
+                'instrument-flute': 'Flute',
+                'instrument-accordion': 'Accordion',
+                'modal-score-title': 'Sheet Music',
+                'modal-transpose-title': 'Transpose',
+                'btn-reset': 'Reset',
+                'btn-find-similar': 'Find similar tunes',
+                'modal-similar-title': 'Similar Tunes (based on melody)',
+                'modal-abc-title': 'ABC Source Code',
+                'loading': 'Loading...',
+                'no-results': 'No tunes found matching your criteria.',
+                'error-search': 'Something went wrong during search.',
+                'error-details': 'Tune details could not be loaded.',
+                'error-similar': 'Could not load similar tunes.',
+                'searching-similar': 'Searching for similar tunes...',
+                'view-melody': 'View melody',
+                'key-label': 'Key',
+                'rhythm-label': 'Rhythm',
+                'meter-label': 'Meter',
+                'tempo-label': 'Tempo',
+                'composer-label': 'Composer',
+                'composer-short': 'By',
+                'skipped-label': 'Skipped',
+                'no-extra-info': 'No extra information available.',
+                'audio-not-supported': 'Audio is not supported in this browser.',
+                'score': 'Score',
+                'fav-only': 'Favorites only'
+            }
+        };
+
+        function t(key) {
+            return translations[currentLang][key] || key;
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('abc_lang', lang);
+            updateUI();
+        }
+
+        function updateUI() {
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                el.textContent = t(key);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                el.placeholder = t(key);
+            });
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtn = document.getElementById(`lang-${currentLang}`);
+            if (activeBtn) activeBtn.classList.add('active');
+            document.documentElement.lang = currentLang;
+        }
+
+        async function loadFilters() {
+            try {
+                const res = await fetch('/api/filters');
+                const filters = await res.json();
+                const keySelect = document.getElementById('key-search');
+                filters.keys.forEach(k => {
+                    const opt = document.createElement('option');
+                    opt.value = k;
+                    opt.textContent = k;
+                    keySelect.appendChild(opt);
+                });
+                const rhythmSelect = document.getElementById('rhythm-search');
+                filters.rhythms.forEach(r => {
+                    const opt = document.createElement('option');
+                    opt.value = r;
+                    opt.textContent = r;
+                    rhythmSelect.appendChild(opt);
+                });
+                const meterSelect = document.getElementById('meter-search');
+                filters.meters.forEach(m => {
+                    const opt = document.createElement('option');
+                    opt.value = m;
+                    opt.textContent = m;
+                    meterSelect.appendChild(opt);
+                });
+            } catch (err) {
+                console.error("Error loading filters:", err);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUI();
+            loadFilters();
+        });
+
+        async function toggleFavorite(id, event) {
+            if (event) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+
+            if (favorites.has(id)) {
+                favorites.delete(id);
+            } else {
+                favorites.add(id);
+            }
+
+            localStorage.setItem('abc_favorites', JSON.stringify(Array.from(favorites)));
+            updateFavoriteButtons(id);
+
+            if (showFavoritesOnly && !favorites.has(id)) {
+                performSearch();
+            }
+        }
+
+        function updateFavoriteButtons(id) {
+            const isFav = favorites.has(id);
+            if (document.getElementById('tune-modal').style.display === 'flex') {
+                const modalFavBtn = document.getElementById('modal-fav-btn');
+                if (modalFavBtn) {
+                    modalFavBtn.classList.toggle('active', isFav);
+                    modalFavBtn.title = isFav ? t('Remove from Favorites') : t('Add to Favorites');
+                }
+            }
+            document.querySelectorAll(`.tune-card`).forEach(card => {
+                const titleEl = card.querySelector('h3');
+                if (titleEl && titleEl.textContent.includes(`#${id}`)) {
+                    const btn = card.querySelector('.favorite-btn');
+                    if (btn) {
+                        btn.classList.toggle('active', isFav);
+                        btn.title = isFav ? 'Verwijderen uit favorieten' : 'Toevoegen aan favorieten';
+                    }
+                }
+            });
+        }
+
+        function toggleFavoriteFilter() {
+            showFavoritesOnly = !showFavoritesOnly;
+            const btn = document.getElementById('fav-filter-btn');
+            btn.classList.toggle('active', showFavoritesOnly);
+            btn.style.borderColor = showFavoritesOnly ? 'var(--primary)' : 'var(--border)';
+            btn.style.color = showFavoritesOnly ? 'white' : 'var(--text-dim)';
+            btn.style.background = showFavoritesOnly ? 'var(--primary)' : 'var(--glass)';
+            performSearch();
+        }
 
         async function performSearch(loadMore = false) {
             if (!loadMore) {
                 currentOffset = 0;
-                document.getElementById('tunes-list').innerHTML = '<div style="grid-column: 1/-1; text-align:center; padding: 50px;">Laden...</div>';
+                document.getElementById('tunes-list').innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding: 50px;">${t('loading')}</div>`;
             }
 
             const q = document.getElementById('q-search').value;
@@ -616,7 +1045,21 @@
             const s = document.getElementById('status-search').value;
             const m = document.getElementById('meter-search').value;
 
-            const url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&rhythm=${encodeURIComponent(r)}&meter=${encodeURIComponent(m)}&composer=${encodeURIComponent(c)}&status=${encodeURIComponent(s)}&limit=${limitSize}&offset=${currentOffset}`;
+            let url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&rhythm=${encodeURIComponent(r)}&meter=${encodeURIComponent(m)}&composer=${encodeURIComponent(c)}&status=${encodeURIComponent(s)}&limit=${limitSize}&offset=${currentOffset}`;
+
+            if (showFavoritesOnly) {
+                const ids = Array.from(favorites).join(',');
+                if (!ids) {
+                    document.getElementById('tunes-list').innerHTML = `
+                        <div class="empty-state" style="grid-column: 1/-1;">
+                            <p>${t('no-results')}</p>
+                        </div>
+                    `;
+                    document.getElementById('pagination-load-more').style.display = 'none';
+                    return;
+                }
+                url += `&ids=${ids}`;
+            }
 
             try {
                 const res = await fetch(url);
@@ -625,7 +1068,7 @@
                 if (data.results.length === 0 && !loadMore) {
                     document.getElementById('tunes-list').innerHTML = `
                         <div class="empty-state" style="grid-column: 1/-1;">
-                            <p>Geen tunes gevonden die aan je criteria voldoen.</p>
+                            <p>${t('no-results')}</p>
                         </div>
                     `;
                     document.getElementById('pagination-load-more').style.display = 'none';
@@ -641,7 +1084,7 @@
                 }
             } catch (err) {
                 console.error(err);
-                alert("Er is iets fout gegaan bij het zoeken.");
+                alert(t('error-search'));
             }
         }
 
@@ -650,24 +1093,33 @@
             if (!append) list.innerHTML = '';
 
             results.forEach(tune => {
+                const isFav = favorites.has(tune.id);
                 const card = document.createElement('div');
                 card.className = 'tune-card';
                 card.style.animationDelay = `${Math.random() * 0.5}s`;
+                card.onclick = () => showTune(tune.id);
                 card.innerHTML = `
+                    <button class="favorite-btn ${isFav ? 'active' : ''}" 
+                        onclick="toggleFavorite(${tune.id}, event)" 
+                        title="${isFav ? 'Verwijderen uit favorieten' : 'Toevoegen aan favorieten'}">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l8.84-8.84 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                        </svg>
+                    </button>
                     <h3>
                         ${tune.title}
                         <span class="tune-id">#${tune.id}</span>
                     </h3>
                     <div class="tune-meta">
-                        <div class="badge">Key: <b>${tune.key || '-'}</b></div>
-                        <div class="badge">Ritme: <b>${tune.rhythm || '-'}</b></div>
-                        <div class="badge">Maat: <b>${tune.meter || '-'}</b></div>
-                        ${tune.composer ? `<div class="badge">Door: <b>${tune.composer}</b></div>` : ''}
-                        ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">Skipped: <b>${tune.skip_reason}</b></div>` : ''}
+                        <div class="badge">${t('key-label')}: <b>${tune.key || '-'}</b></div>
+                        <div class="badge">${t('rhythm-label')}: <b>${tune.rhythm || '-'}</b></div>
+                        <div class="badge">${t('meter-label')}: <b>${tune.meter || '-'}</b></div>
+                        ${tune.composer ? `<div class="badge">${t('composer-short')}: <b>${tune.composer}</b></div>` : ''}
+                        ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">${t('skipped-label')}: <b>${tune.skip_reason}</b></div>` : ''}
                     </div>
                     <div class="tune-footer">
-                        <a href="javascript:void(0)" class="btn-text" onclick="showTune(${tune.id})">
-                            Bekijk melodie
+                        <a href="javascript:void(0)" class="btn-text">
+                            ${t('view-melody')}
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
                         </a>
                     </div>
@@ -688,24 +1140,29 @@
 
                 document.getElementById('modal-title').textContent = tune.title;
                 document.getElementById('modal-meta').innerHTML = `
-                    <div class="badge">Key: <b>${tune.key || '-'}</b></div>
-                    <div class="badge">Ritme: <b>${tune.rhythm || '-'}</b></div>
-                    <div class="badge">Maat: <b>${tune.meter || '-'}</b></div>
-                    <div class="badge">Tempo: <b>${tune.tempo || '-'}</b></div>
-                    <div class="badge">Componist: <b>${tune.composer || '-'}</b></div>
+                    <div class="badge">${t('key-label')}: <b>${tune.key || '-'}</b></div>
+                    <div class="badge">${t('rhythm-label')}: <b>${tune.rhythm || '-'}</b></div>
+                    <div class="badge">${t('meter-label')}: <b>${tune.meter || '-'}</b></div>
+                    <div class="badge">${t('tempo-label')}: <b>${tune.tempo || '-'}</b></div>
+                    <div class="badge">${t('composer-label')}: <b>${tune.composer || '-'}</b></div>
                     <div class="badge">ID: <b>#${id}</b></div>
-                    ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">Skipped: <b>${tune.skip_reason}</b></div>` : ''}
+                    ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">${t('skipped-label')}: <b>${tune.skip_reason}</b></div>` : ''}
                 `;
-                document.getElementById('modal-history').textContent = tune.notes || tune.history || "Geen extra informatie beschikbaar.";
+                document.getElementById('modal-history').textContent = tune.notes || tune.history || t('no-extra-info');
                 document.getElementById('modal-link').href = tune.url;
                 document.getElementById('raw-abc-view').textContent = tune.abc;
+
+                const modalFavBtn = document.getElementById('modal-fav-btn');
+                const isFav = favorites.has(id);
+                modalFavBtn.classList.toggle('active', isFav);
+                modalFavBtn.onclick = (e) => toggleFavorite(id, e);
+                modalFavBtn.title = isFav ? t('Remove from Favorites') : t('Add to Favorites');
 
                 document.getElementById('tune-modal').style.display = 'flex';
                 document.body.style.overflow = 'hidden';
 
                 activeTuneAbc = tune.abc;
 
-                // Hide audio and similarity for skipped tunes
                 const audioSection = document.getElementById('audio-controls').parentElement;
                 const similarBtn = document.getElementById('find-similar-btn');
 
@@ -717,54 +1174,46 @@
                     similarBtn.style.display = 'flex';
                 }
 
-                // Set up similarity button
                 similarBtn.onclick = () => findSimilar(id);
                 document.getElementById('similar-tunes-section').style.display = 'none';
                 document.getElementById('similar-tunes-list').innerHTML = '';
+
+                currentTranspose = 0;
+                document.getElementById('transpose-value').textContent = "0";
 
                 currentVisualObj = ABCJS.renderAbc("abc-view", tune.abc, {
                     responsive: 'resize',
                     paddingbottom: 30,
                     paddingtop: 30,
                     paddingleft: 15,
-                    paddingright: 15
+                    paddingright: 15,
+                    visualTranspose: currentTranspose
                 })[0];
 
-                // Reset instrument selector to default (Accordion) when loading a new tune
                 document.getElementById('midi-program').value = "21";
-
                 setupAudio(currentVisualObj);
             } catch (err) {
                 console.error(err);
-                alert("Tune details konden niet worden geladen.");
+                alert(t('error-details'));
             }
         }
 
         async function stopAudio() {
             if (synthControl) {
                 try {
-                    // Try to pause first to stop immediate sound
-                    if (typeof synthControl.pause === 'function') {
-                        synthControl.pause();
-                    }
-                    // Disable the controller to release its UI and state
+                    if (typeof synthControl.pause === 'function') synthControl.pause();
                     synthControl.disable(true);
                 } catch (e) {
                     console.warn("Error disabling synthControl:", e);
                 }
             }
-
             if (currentMidiBuffer) {
                 try {
-                    // This is crucial to stop the actual MIDI playback buffer
-                    if (typeof currentMidiBuffer.stop === 'function') {
-                        currentMidiBuffer.stop();
-                    }
+                    if (typeof currentMidiBuffer.stop === 'function') currentMidiBuffer.stop();
                 } catch (e) {
                     console.warn("Error stopping MIDI buffer:", e);
                 }
             }
-
             synthControl = null;
             currentMidiBuffer = null;
         }
@@ -772,69 +1221,71 @@
         async function setupAudio(visualObj) {
             const audioDiv = document.getElementById('audio-controls');
             const program = parseInt(document.getElementById('midi-program').value) || 0;
-
-            // Clean up ANY existing audio before starting new one
             await stopAudio();
-
-            // Clear container to avoid duplicate controls
             audioDiv.innerHTML = '';
 
             if (ABCJS.synth.supportsAudio()) {
-                // Determine if we have an old controller to clean up
-                // This block is now handled by stopAudio()
-                // if (synthControl) {
-                //     try {
-                //         synthControl.disable(true);
-                //     } catch (e) {
-                //         console.warn("Error disabling old synth", e);
-                //     }
-                // }
-
-                // Create a fresh container for this specific instance
                 const innerId = `audio-synth-${Date.now()}`;
                 const innerDiv = document.createElement('div');
                 innerDiv.id = innerId;
                 audioDiv.appendChild(innerDiv);
 
-                // Always create a fresh controller for the new tune
                 synthControl = new ABCJS.synth.SynthController();
-
                 synthControl.load(`#${innerId}`, null, {
-                    displayLoop: true,
-                    displayRestart: true,
-                    displayPlay: true,
-                    displayProgress: true,
-                    displayWarp: true
+                    displayLoop: true, displayRestart: true, displayPlay: true,
+                    displayProgress: true, displayWarp: true
                 });
 
                 currentMidiBuffer = new ABCJS.synth.CreateSynth();
                 currentMidiBuffer.init({
                     visualObj: visualObj,
-                    options: {
-                        program: program
-                    }
-                }).then(function (response) {
-                    synthControl.setTune(visualObj, false, {
-                        chordsOff: true,
-                        program: program
-                    }).then(function (response) {
-                        console.log("Audio synth ready with program", program);
-                    }).catch(function (error) {
-                        console.warn("Audio synth error", error);
-                    });
-                }).catch(function (error) {
-                    console.warn("Audio init error", error);
-                });
+                    options: { program: program }
+                }).then(function () {
+                    synthControl.setTune(visualObj, false, { chordsOff: true, program: program })
+                        .catch(err => console.warn("Audio synth error", err));
+                }).catch(err => console.warn("Audio init error", err));
             } else {
-                audioDiv.innerHTML = "<p style='color: var(--text-dim); font-size: 0.9rem;'>Audio wordt niet ondersteund in deze browser.</p>";
+                audioDiv.innerHTML = `<p style='color: var(--text-dim); font-size: 0.9rem;'>${t('audio-not-supported')}</p>`;
             }
         }
 
         function updateInstrument() {
-            if (currentVisualObj) {
+            if (currentVisualObj) setupAudio(currentVisualObj);
+        }
+
+        function transposeTune(semitones) {
+            if (semitones === 0) currentTranspose = 0;
+            else currentTranspose += semitones;
+
+            document.getElementById('transpose-value').textContent = (currentTranspose > 0 ? "+" : "") + currentTranspose;
+
+            if (activeTuneAbc) {
+                currentVisualObj = ABCJS.renderAbc("abc-view", activeTuneAbc, {
+                    responsive: 'resize', paddingbottom: 30, paddingtop: 30, paddingleft: 15, paddingright: 15,
+                    visualTranspose: currentTranspose
+                })[0];
                 setupAudio(currentVisualObj);
             }
         }
+
+        async function downloadMIDI() {
+            if (!activeTuneAbc) return;
+            const midi = ABCJS.synth.getMidiFile(activeTuneAbc, {
+                visualObj: currentVisualObj,
+                program: parseInt(document.getElementById('midi-program').value) || 0
+            });
+            const blob = new Blob([midi], { type: "audio/midi" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${document.getElementById('modal-title').textContent || 'tune'}.mid`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function printScore() { window.print(); }
 
         async function findSimilar(id) {
             const btn = document.getElementById('find-similar-btn');
@@ -842,31 +1293,27 @@
             const list = document.getElementById('similar-tunes-list');
 
             btn.disabled = true;
-            btn.textContent = "Zoeken naar gelijkaardige melodieën...";
+            btn.textContent = t('searching-similar');
 
             try {
                 const res = await fetch(`/api/tune/${id}/similar`);
                 const data = await res.json();
-
                 btn.disabled = false;
                 btn.innerHTML = `
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
-                    Vind gelijkaardige melodieën
+                    ${t('btn-find-similar')}
                 `;
 
-                if (data.error) {
-                    alert(data.error);
-                    return;
-                }
+                if (data.error) { alert(data.error); return; }
 
                 section.style.display = 'block';
                 list.innerHTML = '';
 
                 if (data.results.length === 0) {
-                    list.innerHTML = '<p style="color: var(--text-dim); font-size: 0.9rem;">Geen gelijkaardige melodieën gevonden.</p>';
+                    list.innerHTML = `<p style="color: var(--text-dim); font-size: 0.9rem;">${t('no-results')}</p>`;
                 } else {
                     data.results.forEach(tune => {
                         const item = document.createElement('div');
@@ -881,35 +1328,26 @@
                                 <div style="font-size: 0.8rem; color: var(--text-dim);">${tune.key} | ${tune.rhythm}</div>
                             </div>
                             <div style="font-size: 0.8rem; background: var(--glass); padding: 2px 8px; border-radius: 5px; color: var(--accent);">
-                                Score: ${tune.similarity_score}
+                                ${t('score') || 'Score'}: ${tune.similarity_score}
                             </div>
                         `;
                         list.appendChild(item);
                     });
                 }
-
-                // Scroll to similar results
                 section.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
             } catch (err) {
                 console.error(err);
                 btn.disabled = false;
-                btn.textContent = "Vind gelijkaardige melodieën";
-                alert("Kon gelijkaardige melodieën niet laden.");
+                btn.textContent = t('btn-find-similar');
+                alert(t('error-similar'));
             }
         }
 
         function closeModal() {
             document.getElementById('tune-modal').style.display = 'none';
             document.body.style.overflow = 'auto';
-
-            // Stop audio when closing modal
             stopAudio();
         }
-
-        window.onbeforeunload = function () {
-            stopAudio();
-        };
 
         function clearFilters() {
             document.getElementById('q-search').value = '';
@@ -918,6 +1356,12 @@
             document.getElementById('meter-search').value = '';
             document.getElementById('composer-search').value = '';
             document.getElementById('status-search').value = 'parsed';
+            showFavoritesOnly = false;
+            const btn = document.getElementById('fav-filter-btn');
+            btn.classList.remove('active');
+            btn.style.borderColor = 'var(--border)';
+            btn.style.color = 'var(--text-dim)';
+            btn.style.background = 'var(--glass)';
             performSearch();
         }
 
@@ -930,74 +1374,18 @@
             element.click();
         }
 
-        // Close modal on click outside
         window.onclick = function (event) {
             const modal = document.getElementById('tune-modal');
-            if (event.target == modal) {
-                closeModal();
-            }
+            if (event.target == modal) closeModal();
         }
 
-        // Stop audio when leaving the page
-        window.onbeforeunload = function () {
-            if (typeof synthControl !== 'undefined' && synthControl) {
-                try {
-                    if (typeof synthControl.pause === 'function') {
-                        synthControl.pause();
-                    }
-                    synthControl.disable(true);
-                } catch (e) {
-                    // Ignore errors on unload
-                }
-            }
-        };
-
-        // Initial load
-        document.addEventListener('DOMContentLoaded', () => {
-            loadFilters();
-            // performSearch(); // Optional: start with some tunes
-        });
-
-        async function loadFilters() {
-            try {
-                const res = await fetch('/api/filters');
-                const data = await res.json();
-
-                const keySelect = document.getElementById('key-search');
-                const rhythmSelect = document.getElementById('rhythm-search');
-                const meterSelect = document.getElementById('meter-search');
-
-                data.keys.forEach(k => {
-                    const opt = document.createElement('option');
-                    opt.value = k;
-                    opt.textContent = k;
-                    keySelect.appendChild(opt);
-                });
-
-                data.rhythms.forEach(r => {
-                    const opt = document.createElement('option');
-                    opt.value = r;
-                    opt.textContent = r;
-                    rhythmSelect.appendChild(opt);
-                });
-
-                data.meters.forEach(m => {
-                    const opt = document.createElement('option');
-                    opt.value = m;
-                    opt.textContent = m;
-                    meterSelect.appendChild(opt);
-                });
-            } catch (err) {
-                console.error("Failed to load filters:", err);
-            }
-        }
-
-        // Trigger search on enter
         document.querySelectorAll('input').forEach(input => {
             input.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') performSearch();
             });
         });
+
+        window.onbeforeunload = function () { stopAudio(); };
     </script>
 </body>
 
