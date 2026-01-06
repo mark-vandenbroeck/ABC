@@ -149,10 +149,7 @@
         header h1 {
             font-size: 3.5rem;
             font-weight: 700;
-            background: linear-gradient(135deg, #fff 0%, var(--primary) 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: white;
             margin-bottom: 10px;
         }
 
@@ -259,8 +256,7 @@
         }
 
         button.btn-prominent {
-            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 50%, var(--accent) 100%);
-            background-size: 200% auto;
+            background: var(--primary);
             color: white;
             border: none;
             padding: 14px 24px;
@@ -277,7 +273,7 @@
         }
 
         button.btn-prominent:hover {
-            background-position: right center;
+            background: var(--primary-hover);
             transform: translateY(-3px) scale(1.02);
             box-shadow: 0 8px 25px rgba(99, 102, 241, 0.6);
         }
