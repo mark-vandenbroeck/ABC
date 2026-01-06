@@ -254,7 +254,58 @@
 
         button.btn-secondary:hover {
             color: white;
-            border-color: var(--text-dim);
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.1);
+        }
+
+        button.btn-prominent {
+            background: linear-gradient(135deg, var(--primary) 0%, #8b5cf6 50%, var(--accent) 100%);
+            background-size: 200% auto;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
+            animation: pulse-border 2s infinite;
+        }
+
+        button.btn-prominent:hover {
+            background-position: right center;
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(99, 102, 241, 0.6);
+        }
+
+        button.btn-prominent:active {
+            transform: translateY(-1px) scale(1);
+        }
+
+        button.btn-prominent svg {
+            transition: transform 0.3s ease;
+        }
+
+        button.btn-prominent:hover svg {
+            transform: rotate(15deg) scale(1.1);
+        }
+
+        @keyframes pulse-border {
+            0% {
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 10px rgba(99, 102, 241, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+            }
         }
 
         /* Results Grid */
@@ -763,12 +814,10 @@
                     </div>
                 </div>
 
-                <div style="margin-top: 15px;">
-                    <button class="btn-secondary"
-                        style="width: 100%; justify-content: center; border-color: var(--primary); color: var(--primary);"
-                        id="find-similar-btn">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2">
+                <div style="margin-top: 20px;">
+                    <button class="btn-prominent" style="width: 100%; justify-content: center;" id="find-similar-btn">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
                             <circle cx="11" cy="11" r="8"></circle>
                             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                         </svg>
