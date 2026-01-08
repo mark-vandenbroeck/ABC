@@ -1,6 +1,6 @@
 # Web Crawler & ABC Music Search System
 
-*[English version here](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/README.md)*
+*[English version here](README.md)*
 
 Een geavanceerd multi-process web crawler systeem gebouwd in Python, gespecializeerd in het vinden, indexeren en doorzoeken van ABC muziek nota's.
 
@@ -191,7 +191,7 @@ make start
     - **Nieuw**: Individuele log-files per worker proces zijn direct in de UI te bekijken.
     - De interface ververst elke 3 seconden voor een vlot resultaat zonder de database te overbelasten.
 - **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers.
-    ![ABC Tune Explorer](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/screenshots/abc_tune_explorer.png)
+    ![ABC Tune Explorer](screenshots/abc_tune_explorer.png)
     - **Nieuw**: Meertalige ondersteuning (Nederlands en Engels) via de taalschakelaar rechtsboven.
     - **Nieuw**: Favorieten-systeem: Markeer je favoriete tunes met het hart-icoon en filter de resultatenlijst om alleen je opgeslagen melodieën te zien.
     - **Nieuw**: Zoek op Tune ID (bijv. `77277`).
@@ -219,7 +219,7 @@ De resultaten verschijnen direct onder de zoekbalk in een responsive grid. Elke 
 
 ### 2. Melodie Detailvenster
 
-![Tune Detail View](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/screenshots/tune_detail_view.png)
+![Tune Detail View](screenshots/tune_detail_view.png)
 
 Dit is het hart van de applicatie, waar je de muziek kunt lezen, horen en analyseren.
 
@@ -250,7 +250,7 @@ Deze geavanceerde functie helpt je varianten en gerelateerde tunes te ontdekken.
 
 ### 3. Systeembeheer (Management Dashboard)
 
-![Management Dashboard](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/screenshots/management_dashboard.png)
+![Management Dashboard](screenshots/management_dashboard.png)
 
 Bereikbaar via `http://localhost:5500`. Dit paneel is voor beheerders en power-users.
 
