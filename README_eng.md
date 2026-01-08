@@ -7,6 +7,7 @@ An advanced multi-process web crawler system built in Python, specialized in fin
 - **Melody Search (FAISS HNSW)**: Search for tunes based on musical similarity using a high-performance vector index.
 - **ABC Indexing**: Automatic extraction of metadata (title, key, rhythm, etc.) and musical intervals from ABC files.
 - **Multi-process Architecture**: Scalable system with independent dispatchers, fetchers, parsers, indexers, and purgers.
+- **Transpose & Export**: Transpose melodies in real-time, and export to ABC, MIDI, or PDF.
 - **Real-time Control**: Full management interface via Flask for monitoring processes and statistics.
 
 ## Components
@@ -15,6 +16,26 @@ An advanced multi-process web crawler system built in Python, specialized in fin
 - Manages the central work queue from SQLite.
 - Distributes assignments to fetchers, parsers, and indexers via socket connections.
 - Ensures tasks are distributed efficiently and without conflicts.
+
+## Dispatcher Strategy
+
+The Dispatcher acts as the "brain" of the crawler and employs an advanced strategy to ensure efficiency, politeness, and robustness:
+
+- **Atomicity & Concurrency**: Uses `BEGIN IMMEDIATE` transactions and atomic SQL `UPDATE` queries. This guarantees that a URL is claimed by exactly one fetcher at a time, even with hundreds of simultaneous requests.
+- **Smart Prioritization**: 
+    - **ABC-First**: URLs ending in `.abc` receive the highest priority. They are sent directly to fetchers as soon as they are discovered, regardless of their position in the general queue.
+    - **Chronological**: Within the same priority level, the oldest URLs (`created_at`) are processed first.
+- **Politeness & Throttling**: 
+    - **Cooldown Period**: Implements a mandatory pause (default 30 seconds) between consecutive requests to the same host to prevent server overload.
+    - **Exclusion**: Hosts currently marked as "disabled" (e.g., due to previous errors) are skipped entirely.
+- **Fault Tolerance & Recovery**:
+    - **Retry Management**: Tracks the number of attempts per URL (maximum 3). After repeated failures, a URL is marked as `error`.
+    - **Host Blockade**: Temporarily disables hosts that generate consecutive timeouts, preventing fetchers from wasting time on slow or unreachable sites.
+    - **Timeout Recovery**: The Purger automatically re-enables hosts that were blocked due to timeouts after a 24-hour cooldown period.
+    - **Startup Recovery**: On startup, all URLs left in a `dispatched`, `parsing`, or `indexing` state from a previous session are automatically released.
+    - **Liveness Checks**: URLs that have been in process for more than 120 seconds without a result are automatically returned to the queue.
+- **Status Synchronization**: Synchronizes the status of the entire pipeline (`dispatched` -> `parsing` -> `indexing`) back to the central `urls` table for 100% visibility in the UI.
+- **Log Scanning**: Periodically scans fetcher logs for DNS errors and blocks problematic hosts directly in the database.
 
 ### 2. URL Fetcher (`url_fetcher.py`)
 - Downloads documents and extracts hyperlinks for further crawling.
@@ -151,8 +172,12 @@ make start
 
 2. Web Interfaces:
 - **Management Dashboard (`http://localhost:5500`)**: Manage processes (fetchers, parsers, indexers), view crawler statistics, and configure filters.
-    - **New**: Process Control page redesigned with a clear 2-column layout.
+    - **New**: Redesigned Process Control page with a clear 2-column layout and a "Stop All Processes" emergency button.
+    - **New**: Real-time log streaming for individual worker processes directly in the UI.
+    - **New**: Statuses in the queue now track all the way to "indexed", providing full end-to-end visibility.
 - **ABC Tune Explorer (`http://localhost:5501`)**: Premium search interface for end-users.
+    - **New**: Multi-language support (English and Dutch) via the language switcher.
+    - **New**: Favorites system: Mark tunes with a heart icon and filter the results to see only your saved melodies.
     - **New**: Search by Tune ID (e.g., `77277`).
     - **New**: "Find Similar Tunes" button uses FAISS (fast preselection) and DTW (precise ranking) to find musical variations.
     - Includes robust sheet music rendering and audio via a local fallback of the `ABCJS` library.
@@ -183,12 +208,17 @@ This is the heart of the application, where you can read, hear, and analyze the 
 #### Visualization & Audio
 - **Score**: The ABC code is automatically converted into readable sheet music.
 - **Audio Player**:
-    - Use the **Play/Pause** button to listen to the melody (synthesized piano).
+    - Use the **Play/Pause** button to listen to the melody.
+    - **Instrument Selector**: Choose from Piano, Violin, Flute, or Accordion.
     - **Progress Bar**: Drag to jump to a specific point.
     - **Loop Function**: Enable repetition to practice a difficult passage.
     - **Tempo**: Adjust playback speed without changing pitch.
+- **Transpose**: Shift the key of the melody up or down in real-time with +1/-1 buttons. The score and audio update instantly.
 - **Source Code**: View the raw ABC text ("ABC Source Code") to see how the music is notated.
-- **Download**: Click "Download ABC" to save the file locally.
+- **Download & Export**: 
+    - Click "ABC" to save the source text.
+    - Click "MIDI" to export the audio for use in other software.
+    - Click "PDF" to print or save the sheet music in high quality.
 
 #### "Find Similar Tunes"
 This advanced feature helps you discover variations and related tunes.

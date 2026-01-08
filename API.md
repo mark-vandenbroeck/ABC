@@ -12,6 +12,7 @@ http://localhost:5500
 - [MIME Type Management](#mime-type-management)
 - [Refused Extensions](#refused-extensions)
 - [Host Management](#host-management)
+- [Log Management](#log-management)
 - [Statistics](#statistics)
 
 ---
@@ -53,6 +54,13 @@ Get status of all running processes.
     {
       "id": "1",
       "pid": 3456,
+      "status": "running"
+    }
+  ],
+  "indexers": [
+    {
+      "id": "1",
+      "pid": 7890,
       "status": "running"
     }
   ]
@@ -165,6 +173,38 @@ Remove a specific parser process.
 
 **Parameters:**
 - `parser_id` (path): ID of the parser to remove
+
+**Response:**
+```json
+{
+  "status": "ok"
+}
+```
+
+### POST /api/processes/indexer/add
+Add a new indexer process.
+
+**Request Body (optional):**
+```json
+{
+  "id": "2"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "id": "1",
+  "pid": 7890
+}
+```
+
+### POST /api/processes/indexer/<indexer_id>/remove
+Remove a specific indexer process.
+
+**Parameters:**
+- `indexer_id` (path): ID of the indexer to remove
 
 **Response:**
 ```json
@@ -460,6 +500,23 @@ Update host configuration (enable/disable).
 
 ---
 
+## Log Management
+
+### GET /api/logs/<filename>
+Stream a log file's contents in real-time using Server-Sent Events (SSE).
+
+**Parameters:**
+- `filename` (path): The name of the log file to stream. Available files: `dispatcher.log`, `purger.log`, `fetcher.log`, `parser_out.log`, `indexer_out.log`, `app_debug.log`, `rebuild.log`, `rebuild_flat.log`, or worker-specific logs like `fetcher.1.log`.
+
+**Response:**
+- Content-Type: `text/event-stream`
+- Data: JSON string per line
+```json
+{ "time": "2026-01-01 00:00:00,000", "level": "INFO", "message": "Example log message" }
+```
+
+---
+
 ## Statistics
 
 ### GET /api/stats
@@ -475,6 +532,7 @@ Get overall crawler statistics.
     "fetched": 200,
     "parsing": 50,
     "parsed": 4500,
+    "indexing": 20,
     "indexed": 549,
     "error": 150
   },

@@ -7,6 +7,7 @@ Een geavanceerd multi-process web crawler systeem gebouwd in Python, gespecializ
 - **Melodie Zoeken (FAISS HNSW)**: Zoek naar tunes op basis van muzikale gelijkenis met behulp van een high-performance vector index.
 - **ABC Indexing**: Automatische extractie van metadata (titel, toonsoort, ritme, etc.) en muzikale intervallen uit ABC bestanden.
 - **Multi-process Architectuur**: Schaalbaar systeem met onafhankelijke dispatchers, fetchers, parsers, indexers en purgers.
+- **Transpositie & Export**: Transponeer melodieën in real-time, en exporteer naar ABC, MIDI of PDF.
 - **Real-time Controle**: Volledige beheer-interface via Flask voor het monitoren van processen en statistieken.
 
 ## Componenten
@@ -30,6 +31,7 @@ De Dispatcher fungeert als het "brein" van de crawler en hanteert een geavanceer
 - **Fouttolerantie & Herstel**:
     - **Retry Management**: Houdt het aantal pogingen per URL bij (maximaal 3). Na herhaalde fouten wordt een URL gemarkeerd als `error`.
     - **Host Blokkade**: Schakelt hosts tijdelijk uit die opeenvolgende timeouts genereren, om te voorkomen dat fetchers tijd verspillen aan trage of onbereikbare sites.
+    - **Timeout Recovery**: De Purger re-activeert automatisch hosts die 24 uur geleden geblokkeerd zijn door timeouts, voor een nieuwe poging.
     - **Startup Recovery**: Bij het opstarten worden alle URL's die in een vorige sessie bleven hangen op `dispatched` automatisch vrijgegeven.
     - **Liveness Checks**: URL's die langer dan 120 seconden in behandeling zijn zonder resultaat, worden automatisch teruggezet naar de wachtrij.
 - **Status Synchronisatie**: Synchroniseert de status van de hele pijplijn (`dispatched` -> `parsing` -> `indexing`) terug naar de centrale `urls` tabel voor 100% visibiliteit in de UI.
@@ -187,6 +189,8 @@ make start
     - **Nieuw**: Individuele log-files per worker proces zijn direct in de UI te bekijken.
     - De interface ververst elke 3 seconden voor een vlot resultaat zonder de database te overbelasten.
 - **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers.
+    - **Nieuw**: Meertalige ondersteuning (Nederlands en Engels) via de taalschakelaar rechtsboven.
+    - **Nieuw**: Favorieten-systeem: Markeer je favoriete tunes met het hart-icoon en filter de resultatenlijst om alleen je opgeslagen melodieën te zien.
     - **Nieuw**: Zoek op Tune ID (bijv. `77277`).
     - **Nieuw**: "Vind gelijkaardige melodieën" knop maakt gebruik van FAISS (snelle voorselectie) en DTW (precieze ranking) om muzikale variaties te vinden.
     - Bevat robuuste rendering van bladmuziek en audio via een lokale fallback van de `ABCJS` bibliotheek.
@@ -217,12 +221,17 @@ Dit is het hart van de applicatie, waar je de muziek kunt lezen, horen en analys
 #### Muziekweergave & Audio
 - **Partituur**: De ABC code wordt automatisch omgezet naar leesbare bladmuziek.
 - **Audio Speler**:
-    - Gebruik de **Play/Pause** knop om de melodie te beluisteren (gesynthetiseerde piano).
+    - Gebruik de **Play/Pause** knop om de melodie te beluisteren.
+    - **Instrument Selector**: Kies tussen Piano, Viool, Fluit of Accordeon.
     - **Progres Bar**: Sleep om naar een specifiek punt te springen.
     - **Loop Functie**: Schakel herhaling in om een lastige passage te oefenen.
     - **Tempo**: Pas de afspeelsnelheid aan zonder de toonhoogte te veranderen.
+- **Transponeren**: Verhoog of verlaag de toonsoort van de melodie in real-time met de +1/-1 knoppen. De partituur en audio passen zich direct aan.
 - **Broncode**: Bekijk de ruwe ABC tekst ("ABC Broncode") om te zien hoe de muziek genoteerd is.
-- **Download**: Klik op "Download ABC" om het bestand lokaal op te slaan.
+- **Download & Export**: 
+    - Klik op "ABC" om de brontekst op te slaan.
+    - Klik op "MIDI" om het audiobestand te exporteren voor gebruik in andere software.
+    - Klik op "PDF" om de partituur in hoge kwaliteit af te drukken of op te slaan.
 
 #### "Vind gelijkaardige melodieën"
 Deze geavanceerde functie helpt je varianten en gerelateerde tunes te ontdekken.
