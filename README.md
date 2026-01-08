@@ -1,69 +1,71 @@
 # Web Crawler & ABC Music Search System
 
-Een geavanceerd multi-process web crawler systeem gebouwd in Python, gespecializeerd in het vinden, indexeren en doorzoeken van ABC muziek nota's.
+*[Nederlandse versie hier](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/README_nl.md)*
 
-## Belangrijkste Features
+An advanced multi-process web crawler system built in Python, specialized in finding, indexing, and searching ABC music notation.
 
-- **Melodie Zoeken (FAISS HNSW)**: Zoek naar tunes op basis van muzikale gelijkenis met behulp van een high-performance vector index.
-- **ABC Indexing**: Automatische extractie van metadata (titel, toonsoort, ritme, etc.) en muzikale intervallen uit ABC bestanden.
-- **Multi-process Architectuur**: Schaalbaar systeem met onafhankelijke dispatchers, fetchers, parsers, indexers en purgers.
-- **Transpositie & Export**: Transponeer melodieën in real-time, en exporteer naar ABC, MIDI of PDF.
-- **Real-time Controle**: Volledige beheer-interface via Flask voor het monitoren van processen en statistieken.
+## Key Features
 
-## Componenten
+- **Melody Search (FAISS HNSW)**: Search for tunes based on musical similarity using a high-performance vector index.
+- **ABC Indexing**: Automatic extraction of metadata (title, key, rhythm, etc.) and musical intervals from ABC files.
+- **Multi-process Architecture**: Scalable system with independent dispatchers, fetchers, parsers, indexers, and purgers.
+- **Transpose & Export**: Transpose melodies in real-time, and export to ABC, MIDI, or PDF.
+- **Real-time Control**: Full management interface via Flask for monitoring processes and statistics.
+
+## Components
 
 ### 1. URL Dispatcher (`url_dispatcher.py`)
-- Beheert de centrale werk-wachtrij vanuit SQLite.
-- Verdeelt opdrachten over fetchers, parsers en indexers via socket-verbindingen.
-- Garandeert dat taken efficiënt en zonder conflicten worden verdeeld.
+- Manages the central work queue from SQLite.
+- Distributes assignments to fetchers, parsers, and indexers via socket connections.
+- Ensures tasks are distributed efficiently and without conflicts.
 
-## Dispatcher Strategie
+## Dispatcher Strategy
 
-De Dispatcher fungeert als het "brein" van de crawler en hanteert een geavanceerde strategie om efficiëntie, beleefdheid en robuustheid te waarborgen:
+The Dispatcher acts as the "brain" of the crawler and employs an advanced strategy to ensure efficiency, politeness, and robustness:
 
-- **Atomiciteit & Gelijktijdigheid**: Maakt gebruik van `BEGIN IMMEDIATE` transacties en atomische SQL `UPDATE` queries. Dit garandeert dat een URL door exact één fetcher tegelijk wordt geclaimed, zelfs bij honderden gelijktijdige verzoeken.
-- **Slimme Prioritering**: 
-    - **ABC-Eerst**: URL's die eindigen op `.abc` krijgen de allerhoogste prioriteit. Deze worden direct naar de fetchers gestuurd zodra ze ontdekt zijn, ongeacht hun positie in de algemene wachtrij.
-    - **Chronologisch**: Binnen hetzelfde prioriteitsniveau worden de oudste URL's (`created_at`) als eerste verwerkt.
-- **Beleefdheid & Throttling**: 
-    - **Cooldown Period**: Implementeert een verplichte pauze (standaard 30 seconden) tussen opeenvolgende verzoeken naar dezelfde host om overbelasting van servers te voorkomen.
-    - **Uitsluiting**: Hosts die momenteel op "disabled" staan (bijv. door eerdere fouten) worden volledig overgeslagen.
-- **Fouttolerantie & Herstel**:
-    - **Retry Management**: Houdt het aantal pogingen per URL bij (maximaal 3). Na herhaalde fouten wordt een URL gemarkeerd als `error`.
-    - **Host Blokkade**: Schakelt hosts tijdelijk uit die opeenvolgende timeouts genereren, om te voorkomen dat fetchers tijd verspillen aan trage of onbereikbare sites.
-    - **Timeout Recovery**: De Purger re-activeert automatisch hosts die 24 uur geleden geblokkeerd zijn door timeouts, voor een nieuwe poging.
-    - **Startup Recovery**: Bij het opstarten worden alle URL's die in een vorige sessie bleven hangen op `dispatched` automatisch vrijgegeven.
-    - **Liveness Checks**: URL's die langer dan 120 seconden in behandeling zijn zonder resultaat, worden automatisch teruggezet naar de wachtrij.
-- **Status Synchronisatie**: Synchroniseert de status van de hele pijplijn (`dispatched` -> `parsing` -> `indexing`) terug naar de centrale `urls` tabel voor 100% visibiliteit in de UI.
-- **Log Scanning**: Scant periodiek de fetcher-logs op DNS-fouten en blokkeert problematische hosts direct in de database.
+- **Atomicity & Concurrency**: Uses `BEGIN IMMEDIATE` transactions and atomic SQL `UPDATE` queries. This guarantees that a URL is claimed by exactly one fetcher at a time, even with hundreds of simultaneous requests.
+- **Smart Prioritization**: 
+    - **ABC-First**: URLs ending in `.abc` receive the highest priority. They are sent directly to fetchers as soon as they are discovered, regardless of their position in the general queue.
+    - **Chronological**: Within the same priority level, the oldest URLs (`created_at`) are processed first.
+- **Politeness & Throttling**: 
+    - **Cooldown Period**: Implements a mandatory pause (default 30 seconds) between consecutive requests to the same host to prevent server overload.
+    - **Exclusion**: Hosts currently marked as "disabled" (e.g., due to previous errors) are skipped entirely.
+- **Fault Tolerance & Recovery**:
+    - **Retry Management**: Tracks the number of attempts per URL (maximum 3). After repeated failures, a URL is marked as `error`.
+    - **Host Blockade**: Temporarily disables hosts that generate consecutive timeouts, preventing fetchers from wasting time on slow or unreachable sites.
+    - **Timeout Recovery**: The Purger automatically re-enables hosts that were blocked due to timeouts after a 24-hour cooldown period.
+    - **Startup Recovery**: On startup, all URLs left in a `dispatched`, `parsing`, or `indexing` state from a previous session are automatically released.
+    - **Liveness Checks**: URLs that have been in process for more than 120 seconds without a result are automatically returned to the queue.
+- **Status Synchronization**: Synchronizes the status of the entire pipeline (`dispatched` -> `parsing` -> `indexing`) back to the central `urls` table for 100% visibility in the UI.
+- **Log Scanning**: Periodically scans fetcher logs for DNS errors and blocks problematic hosts directly in the database.
 
 ### 2. URL Fetcher (`url_fetcher.py`)
-- Downloadt documenten en extraheert hyperlinks voor verdere crawling.
-- Respecteert `robots.txt` en past beleefdheids-vertragingen toe per host.
+- Downloads documents and extracts hyperlinks for further crawling.
+- Respects `robots.txt` and applies politeness delays per host.
 
 ### 3. URL Parser (`url_parser.py`)
-- Verwerkt gedownloade documenten met de `abc_parser.py` module.
-- Identificeert ABC muziekblokken en slaat individuele tunes op met metadata.
+- Processes downloaded documents with the `abc_parser.py` module.
+- Identifies ABC music blocks and saves individual tunes with metadata.
 
 ### 4. ABC Indexer (`abc_indexer.py`)
-- Berekent 32-dimensionale pitch-interval vectoren voor elke tune.
-- Normaliseert muzikale intervallen om transpositie-invariant zoeken mogelijk te maken.
+- Calculates 32-dimensional pitch-interval vectors for each tune.
+- Normalizes musical intervals to enable transposition-invariant searching.
 
 ### 5. FAISS Sync & Search (`app.py` & `vector_index.py`)
-- Een achtergrond-thread in de Flask app synchroniseert berekende intervallen naar een FAISS HNSW index.
-- Maakt bliksemsnelle "Nearest Neighbor" zoekopdrachten mogelijk op basis van melodie.
+- A background thread in the Flask app synchronizes calculated intervals to a FAISS HNSW index.
+- Enables lightning-fast "Nearest Neighbor" searches based on melody.
 
 ### 6. URL Purger (`url_purger.py`)
-- Ruimt de database periodiek op (verwijderen van ongewenste extensies en problematische hosts).
+- Periodically cleans detailed the database (removing unwanted extensions and problematic hosts).
 
-## Installatie
+## Installation
 
-1. Installeer de systeem-dependencies (bijv. `faiss-cpu`, `numpy`, `music21`):
+1. Install system dependencies (e.g., `faiss-cpu`, `numpy`, `music21`):
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Initialiseer de database:
+2. Initialize the database:
 ```bash
 python database.py
 ```
@@ -76,34 +78,23 @@ graph TD
         Web["WWW (ABC Sources)"]
     end
 
-    subgraph "Crawling & Clean-up"
+    subgraph "Crawling & Parsing"
         D[Dispatcher] <--> F[Fetchers]
-        D <--> PU[Purger]
         F --> |HTML/ABC| U[(URLs Table)]
-        PU -.-> |Clean-up| U
-        PU -.-> |Clean-up| H[(Hosts Table)]
-    end
-
-    subgraph "Parsing & Indexing"
         D <--> P[Parsers]
-        P --> |New Tunebook| TB[(Tunebooks Table)]
-        D <--> I[Indexers]
-        I --> |Pitch Intervals| T[(Tunes Table)]
-        TB -.-> |To Index| I
+        P --> |ABC Header/Body| T[(Tunes Table)]
     end
 
-    subgraph "Search & UI"
+    subgraph "Indexing & Search"
+        D <--> I[Indexers]
+        I --> |Pitch Intervals| T
         A[Flask app] --> |Background Sync| FAISS[FAISS HNSW Index]
         A --> |Search Query| FAISS
         U_UI[Web Interface] <--> A
-        T -.-> |Sync| FAISS
     end
 
     Web -.-> |Download| F
-    
-    style PU fill:#fdb,stroke:#333
-    style TB fill:#dfd,stroke:#333
-    style FAISS fill:#bbf,stroke:#333
+    T -.-> |Sync| FAISS
 ```
 
 ## Database Schema
@@ -144,7 +135,6 @@ erDiagram
         string url
         string status
         timestamp created_at
-        timestamp dispatched_at
     }
 
     tunes {
@@ -166,101 +156,102 @@ erDiagram
     }
 ```
 
-### Belangrijkste Tabellen
+### Key Tables
 
-- **`urls`**: De centrale tabel voor alle gecrawlde en nog te crawlen links. Bevat de ruwe content (document) en status. Statussen: `''` (nieuw), `dispatched`, `fetched`, `parsing`, `parsed`, `indexed`, `error`.
-- **`hosts`**: Houdt per host de `last_access` bij voor rate-limiting en DNS status.
-- **`tunebooks`**: Groepeert tunes die van dezelfde bron-URL komen. De `status` kolom geeft aan of de tunes al geëxtraheerd zijn. (Statussen: `''`, `indexing`, `indexed`).
-- **`tunes`**: Bevat de muzikale metadata en de berekende `pitches` en `intervals`.
-- **`faiss_mapping`**: De koppeling tussen de interne ID's van de FAISS index en de `tune_id` in SQLite.
+- **`urls`**: The central table for all crawled and to-be-crawled links. Contains raw content (document) and status.
+- **`hosts`**: Tracks `last_access` per host for rate-limiting and DNS status.
+- **`tunebooks`**: Groups tunes coming from the same source URL. The `status` column indicates if tunes have been extracted.
+- **`tunes`**: Contains musical metadata and calculated `pitches` and `intervals`.
+- **`faiss_mapping`**: Map between internal FAISS index IDs and SQLite `tune_id`.
 
-## Gebruik
+## Usage
 
-1. Start het volledige systeem:
+1. Start the full system:
 ```bash
 make start
-# Dit start: Dispatcher, Management App (poort 5500) en Search App (poort 5501)
+# This starts: Dispatcher, Management App (port 5500) and Search App (port 5501)
 ```
 
 2. Web Interfaces:
-- **Management Dashboard (`http://localhost:5500`)**: Beheer van processen (fetchers, parsers, indexers), bekijk crawler statistieken en configureer filters.
-    - **Nieuw**: Statussen in de wachtrij lopen nu door tot **"indexed"**, zodat je precies ziet wanneer een URL volledig verwerkt is.
-    - **Nieuw**: Robuuste timeout-logica zorgt dat vastgelopen "dispatched" URLs automatisch worden vrijgegeven.
-    - **Nieuw**: Individuele log-files per worker proces zijn direct in de UI te bekijken.
-    - De interface ververst elke 3 seconden voor een vlot resultaat zonder de database te overbelasten.
-- **ABC Tune Explorer (`http://localhost:5501`)**: De premium zoek-interface voor eindgebruikers.
-    - **Nieuw**: Meertalige ondersteuning (Nederlands en Engels) via de taalschakelaar rechtsboven.
-    - **Nieuw**: Favorieten-systeem: Markeer je favoriete tunes met het hart-icoon en filter de resultatenlijst om alleen je opgeslagen melodieën te zien.
-    - **Nieuw**: Zoek op Tune ID (bijv. `77277`).
-    - **Nieuw**: "Vind gelijkaardige melodieën" knop maakt gebruik van FAISS (snelle voorselectie) en DTW (precieze ranking) om muzikale variaties te vinden.
-    - Bevat robuuste rendering van bladmuziek en audio via een lokale fallback van de `ABCJS` bibliotheek.
+- **Management Dashboard (`http://localhost:5500`)**: Manage processes (fetchers, parsers, indexers), view crawler statistics, and configure filters.
+    - **New**: Redesigned Process Control page with a clear 2-column layout and a "Stop All Processes" emergency button.
+    - **New**: Real-time log streaming for individual worker processes directly in the UI.
+    - **New**: Statuses in the queue now track all the way to "indexed", providing full end-to-end visibility.
+- **ABC Tune Explorer (`http://localhost:5501`)**: Premium search interface for end-users.
+    ![ABC Tune Explorer](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/screenshots/abc_tune_explorer.png)
+    - **New**: Multi-language support (English and Dutch) via the language switcher.
+    - **New**: Favorites system: Mark tunes with a heart icon and filter the results to see only your saved melodies.
+    - **New**: Search by Tune ID (e.g., `77277`).
+    - **New**: "Find Similar Tunes" button uses FAISS (fast preselection) and DTW (precise ranking) to find musical variations.
+    - Includes robust sheet music rendering and audio via a local fallback of the `ABCJS` library.
 
-## Gebruikershandleiding: ABC Tune Explorer
+## User Manual: ABC Tune Explorer
 
-### 1. Zoeken & Navigeren
+### 1. Search & Navigation
 
-De interface is ontworpen om intuïtief toegang te geven tot duizenden traditionele melodieën.
+The interface is designed to provide intuitive access to thousands of traditional melodies.
 
-#### Zoekvelden
-- **Algemeen Zoekveld**: Dit is een krachtige alleskunner.
-    - *Titel*: Typ (een deel van) de titel, bijv. "Glory".
-    - *Tune ID*: Weet je het ID nummer? Typ het direct in (bijv. `77277`) om exact die tune te openen.
-    - *Wildcards*: Zoeken is standaard "bevat", dus je hoeft geen `*` te gebruiken.
-- **Specifieke Filters**:
-    - *Key (Toonsoort)*: Filter op toonsoort. Gebruik standaard notatie zoals `G` (G majeur), `Am` (A mineur), `Dmix` (D Mixolydisch).
-    - *Rhythm (Ritme)*: Filter op type dans of metrum, zoals `Reel`, `Jig`, `Hornpipe`, `Waltz`.
-    - *Composer (Componist)*: Zoek naar tunes van of toegeschreven aan een specifieke persoon.
+#### Search Fields
+- **General Search Field**: A powerful all-rounder.
+    - *Title*: Type (part of) the title, e.g., "Glory".
+    - *Tune ID*: Know the ID number? Type it directly (e.g., `77277`) to open that exact tune.
+    - *Wildcards*: Search is "contains" by default, so no `*` is needed.
+- **Specific Filters**:
+    - *Key*: Filter by key. Use standard notation like `G` (G major), `Am` (A minor), `Dmix` (D Mixolydian).
+    - *Rhythm*: Filter by dance type or meter, such as `Reel`, `Jig`, `Hornpipe`, `Waltz`.
+    - *Composer*: Search for tunes by or attributed to a specific person.
 
-#### Resultaten
-De resultaten verschijnen direct onder de zoekbalk in een responsive grid. Elke kaart toont de titel en de belangrijkste metadata. Klik op **"Bekijk melodie"** op een kaart om het detailvenster te openen.
+#### Results
+Results appear immediately below the search bar in a responsive grid. Each card shows the title and key metadata. Click **"View melody"** ("Bekijk melodie") on a card to open the detail view.
 
-### 2. Melodie Detailvenster
+### 2. Melody Detail View
 
-Dit is het hart van de applicatie, waar je de muziek kunt lezen, horen en analyseren.
+![Tune Detail View](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/screenshots/tune_detail_view.png)
 
-#### Muziekweergave & Audio
-- **Partituur**: De ABC code wordt automatisch omgezet naar leesbare bladmuziek.
-- **Audio Speler**:
-    - Gebruik de **Play/Pause** knop om de melodie te beluisteren.
-    - **Instrument Selector**: Kies tussen Piano, Viool, Fluit of Accordeon.
-    - **Progres Bar**: Sleep om naar een specifiek punt te springen.
-    - **Loop Functie**: Schakel herhaling in om een lastige passage te oefenen.
-    - **Tempo**: Pas de afspeelsnelheid aan zonder de toonhoogte te veranderen.
-- **Transponeren**: Verhoog of verlaag de toonsoort van de melodie in real-time met de +1/-1 knoppen. De partituur en audio passen zich direct aan.
-- **Broncode**: Bekijk de ruwe ABC tekst ("ABC Broncode") om te zien hoe de muziek genoteerd is.
+This is the heart of the application, where you can read, hear, and analyze the music.
+
+#### Visualization & Audio
+- **Score**: The ABC code is automatically converted into readable sheet music.
+- **Audio Player**:
+    - Use the **Play/Pause** button to listen to the melody.
+    - **Instrument Selector**: Choose from Piano, Violin, Flute, or Accordion.
+    - **Progress Bar**: Drag to jump to a specific point.
+    - **Loop Function**: Enable repetition to practice a difficult passage.
+    - **Tempo**: Adjust playback speed without changing pitch.
+- **Transpose**: Shift the key of the melody up or down in real-time with +1/-1 buttons. The score and audio update instantly.
+- **Source Code**: View the raw ABC text ("ABC Source Code") to see how the music is notated.
 - **Download & Export**: 
-    - Klik op "ABC" om de brontekst op te slaan.
-    - Klik op "MIDI" om het audiobestand te exporteren voor gebruik in andere software.
-    - Klik op "PDF" om de partituur in hoge kwaliteit af te drukken of op te slaan.
+    - Click "ABC" to save the source text.
+    - Click "MIDI" to export the audio for use in other software.
+    - Click "PDF" to print or save the sheet music in high quality.
 
-#### "Vind gelijkaardige melodieën"
-Deze geavanceerde functie helpt je varianten en gerelateerde tunes te ontdekken.
-1.  Klik op de knop **"Vind gelijkaardige melodieën"** onderaan de details.
-2.  Het systeem analyseert de *intervallen* van de huidige melodie.
-3.  Er verschijnt een lijst met tunes die muzikaal sterk lijken op de huidige.
-    *   **Score Verklaring**: De score (bijv. `3.4` of `12.1`) is de "afstand" tussen de melodieën.
-        *   **0.0**: Exacte match (dezelfde notenvolgorde).
-        *   **< 10.0**: Zeer waarschijnlijk een nauwe variant of dezelfde tune in een andere setting.
-        *   **> 20.0**: Melodieën delen karakteristieken maar zijn duidelijk anders.
+#### "Find Similar Tunes"
+This advanced feature helps you discover variations and related tunes.
+1.  Click the **"Find Similar Tunes"** ("Vind gelijkaardige melodieën") button at the bottom of the details.
+2.  The system analyzes the *intervals* of the current melody.
+3.  A list of tunes appears that are musically very similar to the current one.
+    *   **Score Explanation**: The score (e.g., `3.4` or `12.1`) represents the "distance" between melodies.
+        *   **0.0**: Exact match (same note sequence).
+        *   **< 10.0**: Very likely a close variation or the same tune in a different setting.
+        *   **> 20.0**: Melodies share characteristics but are clearly different.
 
-### 3. Systeembeheer (Management Dashboard)
+### 3. System Management (Management Dashboard)
 
-Bereikbaar via `http://localhost:5500`. Dit paneel is voor beheerders en power-users.
+![Management Dashboard](file:///Users/mark/Documents/Python/Cursor%20AI/ABC/screenshots/management_dashboard.png)
+
+Accessible via `http://localhost:5500`. This panel is for administrators and power-users.
 
 - **Process Control**:
-    - **Dispatcher**: Het brein dat taken uitdeelt. Moet altijd aan staan ("Running").
-    - **Purger**: Ruimt periodiek de database op (verwijdert ongeldige/geblokkeerde URL's).
-    - **Fetchers/Parsers/Indexers**: Schaalbare 'workers'. Voeg er meer toe ("Add Fetcher") om sneller te crawlen, of minder om systeembronnen te sparen.
-    - **Stop All Processes**: De rode noodknop onderaan stopt het hele systeem veilig.
-- **Statistics**: Real-time grafieken en tellers over de voortgang van de crawler en de omvang van de index.
-- **Hosts**: Beheer welke websites (domeinen) benaderd mogen worden. Je kunt hier specifieke hosts blokkeren of deblokkeren.
-- **URL Queue**: Een live overzicht van alle ontdekte links. Hier kun je filteren op status (bijv. `indexed` of `error`), MIME-type en zoeken op specifieke URLs. Je kunt hier ook individuele URLs handmatig verwijderen uit de wachtrij.
-- **Log Viewer**: Biedt direct inzicht in de werking van het systeem. Selecteer een specifiek proces (zoals `fetcher.1` of `parser_out`) om de real-time log-output te streamen. Essentieel voor het opsporen van fouten en het volgen van de crawler-activiteit.
+    - **Dispatcher**: The brain assigning tasks. Must always be "Running".
+    - **Purger**: Periodically cleans the database (removes invalid/blocked URLs).
+    - **Fetchers/Parsers/Indexers**: Scalable 'workers'. Add more ("Add Fetcher") to crawl faster, or fewer to save system resources.
+    - **Stop All Processes**: Red emergency button at the bottom safely stops the entire system.
+- **Statistics**: Real-time charts and counters on crawler progress and index size.
+- **Hosts**: Manage which websites (domains) may be accessed. You can block or unblock specific hosts here.
 
-## Architectuur & Communicatie
+## Architecture & Communication
 
-Het systeem gebruikt een ster-architectuur waarbij de `Dispatcher` het middelpunt is. Communicatie verloopt via JSON-over-sockets, wat een robuuste scheiding van taken mogelijk maakt. De FAISS index wordt beheerd volgens het "Single Writer" principe in de Flask app om data-corruptie te voorkomen.
+The system uses a star architecture where the `Dispatcher` is the center. Communication occurs via JSON-over-sockets, enabling robust task separation. The FAISS index is managed according to the "Single Writer" principle in the Flask app to prevent data corruption.
 
 ---
-*Ontwikkeld voor het efficiënt verzamelen en analyseren van traditionele muziek.*
-
+*Developed for efficient collection and analysis of traditional music.*
