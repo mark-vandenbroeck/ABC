@@ -875,7 +875,13 @@
         let currentVisualObj = null;
         let currentMidiBuffer = null;
         let currentLang = localStorage.getItem('abc_lang') || 'nl';
-        let favorites = new Set(JSON.parse(localStorage.getItem('abc_favorites') || '[]'));
+
+        let favorites = new Set();
+        let currentUserId = localStorage.getItem('abc_user_id');
+        if (!currentUserId) {
+            currentUserId = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+            localStorage.setItem('abc_user_id', currentUserId);
+        }
         let showFavoritesOnly = false;
 
         const translations = {
@@ -1067,7 +1073,24 @@
         document.addEventListener('DOMContentLoaded', () => {
             updateUI();
             loadFilters();
+            loadFavorites();
         });
+
+        async function loadFavorites() {
+            try {
+                const res = await fetch(`/api/favorites/${currentUserId}`);
+                const data = await res.json();
+                if (Array.isArray(data)) {
+                    favorites = new Set(data);
+                    // Refresh UI if we are already viewing list
+                    if (document.getElementById('tunes-list').children.length > 0) {
+                        renderResults(currentSearchResults, true); // Re-render to update heart icons
+                    }
+                }
+            } catch (err) {
+                console.error("Error loading favorites:", err);
+            }
+        }
 
         async function toggleFavorite(id, event) {
             if (event) {
@@ -1075,16 +1098,29 @@
                 event.preventDefault();
             }
 
-            if (favorites.has(id)) {
-                favorites.delete(id);
-            } else {
-                favorites.add(id);
-            }
+            const action = favorites.has(id) ? 'remove' : 'add';
 
-            localStorage.setItem('abc_favorites', JSON.stringify(Array.from(favorites)));
+            // Optimistic UI update
+            if (action === 'remove') favorites.delete(id);
+            else favorites.add(id);
             updateFavoriteButtons(id);
 
-            if (showFavoritesOnly && !favorites.has(id)) {
+            try {
+                await fetch(`/api/favorites/${action}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: currentUserId, tune_id: id })
+                });
+            } catch (err) {
+                console.error("Error saving favorite:", err);
+                // Revert on error
+                if (action === 'remove') favorites.add(id);
+                else favorites.delete(id);
+                updateFavoriteButtons(id);
+                alert("Kon favoriet niet opslaan.");
+            }
+
+            if (showFavoritesOnly && action === 'remove') {
                 performSearch();
             }
         }
@@ -1135,20 +1171,12 @@
 
             const mode = document.getElementById('mode-search').value;
 
+
+
             let url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&mode=${encodeURIComponent(mode)}&rhythm=${encodeURIComponent(r)}&meter=${encodeURIComponent(m)}&composer=${encodeURIComponent(c)}&status=${encodeURIComponent(s)}&limit=${limitSize}&offset=${currentOffset}`;
 
             if (showFavoritesOnly) {
-                const ids = Array.from(favorites).join(',');
-                if (!ids) {
-                    document.getElementById('tunes-list').innerHTML = `
-                        <div class="empty-state" style="grid-column: 1/-1;">
-                            <p>${t('no-results')}</p>
-                        </div>
-                    `;
-                    document.getElementById('pagination-load-more').style.display = 'none';
-                    return;
-                }
-                url += `&ids=${ids}`;
+                url += `&favorites_only=true&user_id=${currentUserId}`;
             }
 
             try {
@@ -1487,5 +1515,4 @@
         window.onbeforeunload = function () { stopAudio(); };
     </script>
 </body>
-
 </html>

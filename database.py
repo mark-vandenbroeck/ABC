@@ -243,6 +243,16 @@ def init_database():
     ''')
 
 
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_favorites (
+            user_id TEXT NOT NULL,
+            tune_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (user_id, tune_id),
+            FOREIGN KEY (tune_id) REFERENCES tunes (id)
+        )
+    ''')
+
     conn.commit()
     conn.close()
 

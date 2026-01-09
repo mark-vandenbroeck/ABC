@@ -180,7 +180,7 @@ make start
 - **ABC Tune Explorer (`http://localhost:5501`)**: Premium search interface for end-users.
     ![ABC Tune Explorer](screenshots/abc_tune_explorer.png)
     - **New**: Multi-language support (English and Dutch) via the language switcher.
-    - **New**: Favorites system: Mark tunes with a heart icon and filter the results to see only your saved melodies.
+    - **New**: Favorites system: Centralized, database-backed favorites allow you to save melodies permanently across sessions (linked to your browser ID).
     - **New**: Search by Tune ID (e.g., `77277`).
     - **New**: "Find Similar Tunes" button uses FAISS (fast preselection) and DTW (precise ranking) to find musical variations.
     - Includes robust sheet music rendering and audio via a local fallback of the `ABCJS` library.
@@ -189,7 +189,7 @@ make start
 
 ### 1. Search & Navigation
 
-The interface is designed to provide intuitive access to thousands of traditional melodies.
+The interface is designed to provide intuitive access to thousands of traditional music.
 
 #### Search Fields
 - **General Search Field**: A powerful all-rounder.
@@ -197,7 +197,8 @@ The interface is designed to provide intuitive access to thousands of traditiona
     - *Tune ID*: Know the ID number? Type it directly (e.g., `77277`) to open that exact tune.
     - *Wildcards*: Search is "contains" by default, so no `*` is needed.
 - **Specific Filters**:
-    - *Key*: Filter by key. Use standard notation like `G` (G major), `Am` (A minor), `Dmix` (D Mixolydian).
+    - *Key*: Filter by key. Use standard notation like `G` (G major), `Am` (A minor).
+    - *Mode*: Filter by musical mode (e.g., Mixolydian, Dorian).
     - *Rhythm*: Filter by dance type or meter, such as `Reel`, `Jig`, `Hornpipe`, `Waltz`.
     - *Composer*: Search for tunes by or attributed to a specific person.
 

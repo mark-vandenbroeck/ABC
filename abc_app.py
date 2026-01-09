@@ -188,6 +188,8 @@ def search_tunes():
     meter = request.args.get('meter', '').strip()
     composer = request.args.get('composer', '').strip()
     mode = request.args.get('mode', '').strip().lower()
+    user_id = request.args.get('user_id', '').strip()
+    favorites_only = request.args.get('favorites_only', 'false').lower() == 'true'
     limit = int(request.args.get('limit', 50))
     offset = int(request.args.get('offset', 0))
 
@@ -199,8 +201,13 @@ def search_tunes():
             SELECT t.id, t.title, t.key, t.rhythm, t.composer, tb.url, t.tune_body, t.status, t.skip_reason, t.meter
             FROM tunes t
             JOIN tunebooks tb ON t.tunebook_id = tb.id
-            WHERE 1=1
         '''
+        
+        if favorites_only and user_id:
+            sql += ' JOIN user_favorites uf ON t.id = uf.tune_id AND uf.user_id = ? '
+            params.append(user_id)
+            
+        sql += ' WHERE 1=1 '
         params = []
         
         if query:
@@ -356,6 +363,67 @@ def search_tunes():
             'limit': limit,
             'offset': offset
         })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/favorites/<user_id>', methods=['GET'])
+def get_user_favorites(user_id):
+    """Get list of favorite tune IDs for a user"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT tune_id FROM user_favorites WHERE user_id = ?", (user_id,))
+        favorites = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return jsonify(favorites)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/favorites/add', methods=['POST'])
+def add_favorite():
+    """Add a tune to favorites"""
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        tune_id = data.get('tune_id')
+        
+        if not user_id or not tune_id:
+            return jsonify({'error': 'Missing user_id or tune_id'}), 400
+            
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "INSERT OR IGNORE INTO user_favorites (user_id, tune_id) VALUES (?, ?)",
+                (user_id, tune_id)
+            )
+            conn.commit()
+            return jsonify({'status': 'added'})
+        finally:
+            conn.close()
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/favorites/remove', methods=['POST'])
+def remove_favorite():
+    """Remove a tune from favorites"""
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        tune_id = data.get('tune_id')
+        
+        if not user_id or not tune_id:
+            return jsonify({'error': 'Missing user_id or tune_id'}), 400
+            
+        conn = get_db_connection()
+        try:
+            conn.execute(
+                "DELETE FROM user_favorites WHERE user_id = ? AND tune_id = ?",
+                (user_id, tune_id)
+            )
+            conn.commit()
+            return jsonify({'status': 'removed'})
+        finally:
+            conn.close()
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
