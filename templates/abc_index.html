@@ -634,6 +634,19 @@
                     </select>
                 </div>
                 <div class="input-group">
+                    <label for="mode-search" data-i18n="label-mode">Mode</label>
+                    <select id="mode-search">
+                        <option value="" data-i18n="opt-all-modes">Alle modes</option>
+                        <option value="major" data-i18n="mode-major">Majeur / Ionisch</option>
+                        <option value="minor" data-i18n="mode-minor">Mineur / Aeolisch</option>
+                        <option value="dorian" data-i18n="mode-dorian">Dorisch</option>
+                        <option value="mixolydian" data-i18n="mode-mixolydian">Mixolydisch</option>
+                        <option value="phrygian" data-i18n="mode-phrygian">Phrygisch</option>
+                        <option value="lydian" data-i18n="mode-lydian">Lydisch</option>
+                        <option value="locrian" data-i18n="mode-locrian">Locrisch</option>
+                    </select>
+                </div>
+                <div class="input-group">
                     <label data-i18n="label-rhythm">Ritme (Rhythm)</label>
                     <select id="rhythm-search">
                         <option value="" data-i18n="opt-all-rhythms">Alle ritmes</option>
@@ -873,6 +886,15 @@
                 'placeholder-search': 'Titel, componist of trefwoord...',
                 'label-key': 'Toonsoort (Key)',
                 'opt-all-keys': 'Alle toonsoorten',
+                'label-mode': 'Mode (Toonsoort-variant)',
+                'opt-all-modes': 'Alle modes',
+                'mode-major': 'Majeur / Ionisch',
+                'mode-minor': 'Mineur / Aeolisch',
+                'mode-dorian': 'Dorisch',
+                'mode-mixolydian': 'Mixolydisch',
+                'mode-phrygian': 'Phrygisch',
+                'mode-lydian': 'Lydisch',
+                'mode-locrian': 'Locrisch',
                 'label-rhythm': 'Ritme (Rhythm)',
                 'opt-all-rhythms': 'Alle ritmes',
                 'label-meter': 'Maatsoort (Meter)',
@@ -928,6 +950,15 @@
                 'placeholder-search': 'Title, composer or keyword...',
                 'label-key': 'Key',
                 'opt-all-keys': 'All keys',
+                'label-mode': 'Mode',
+                'opt-all-modes': 'All modes',
+                'mode-major': 'Major / Ionian',
+                'mode-minor': 'Minor / Aeolian',
+                'mode-dorian': 'Dorian',
+                'mode-mixolydian': 'Mixolydian',
+                'mode-phrygian': 'Phrygian',
+                'mode-lydian': 'Lydian',
+                'mode-locrian': 'Locrian',
                 'label-rhythm': 'Rhythm',
                 'opt-all-rhythms': 'All rhythms',
                 'label-meter': 'Meter',
@@ -1102,7 +1133,9 @@
             const s = document.getElementById('status-search').value;
             const m = document.getElementById('meter-search').value;
 
-            let url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&rhythm=${encodeURIComponent(r)}&meter=${encodeURIComponent(m)}&composer=${encodeURIComponent(c)}&status=${encodeURIComponent(s)}&limit=${limitSize}&offset=${currentOffset}`;
+            const mode = document.getElementById('mode-search').value;
+
+            let url = `/api/search?q=${encodeURIComponent(q)}&key=${encodeURIComponent(k)}&mode=${encodeURIComponent(mode)}&rhythm=${encodeURIComponent(r)}&meter=${encodeURIComponent(m)}&composer=${encodeURIComponent(c)}&status=${encodeURIComponent(s)}&limit=${limitSize}&offset=${currentOffset}`;
 
             if (showFavoritesOnly) {
                 const ids = Array.from(favorites).join(',');
@@ -1217,6 +1250,7 @@
 
                 document.getElementById('tune-modal').style.display = 'flex';
                 document.body.style.overflow = 'hidden';
+                document.querySelector('.modal-content').scrollTop = 0;
 
                 activeTuneAbc = tune.abc;
 
@@ -1416,6 +1450,7 @@
         function clearFilters() {
             document.getElementById('q-search').value = '';
             document.getElementById('key-search').value = '';
+            document.getElementById('mode-search').value = '';
             document.getElementById('rhythm-search').value = '';
             document.getElementById('meter-search').value = '';
             document.getElementById('composer-search').value = '';

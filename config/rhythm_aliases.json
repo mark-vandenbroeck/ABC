@@ -1,0 +1,74 @@
+{
+    "Schottische": [
+        "scottische",
+        "schottisch",
+        "schottische",
+        "shottische",
+        "scottish",
+        "scottish."
+    ],
+    "Polka": [
+        "polka",
+        "polka 2/4",
+        "polka 4/4"
+    ],
+    "Jig": [
+        "jig",
+        "double jig",
+        "jig 6/8",
+        ".Jigg"
+    ],
+    "Reel": [
+        "reel",
+        "reel 4/4",
+        "reel 2/2"
+    ],
+    "Hornpipe": [
+        "hornpipe",
+        "hornpipe 4/4"
+    ],
+    "Waltz": [
+        "waltz",
+        "waltz 3/4",
+        "valse"
+    ],
+    "Mazurka": [
+        "mazurka",
+        "mazurka 3/4"
+    ],
+    "Bourree": [
+        "bourree",
+        "bourre",
+        "bourrée"
+    ],
+    "Gavotte": [
+        "gavotte",
+        "gavot"
+    ],
+    "Minuet": [
+        "minuet",
+        "menuet"
+    ],
+    "Polska": [
+        "polska",
+        "polska 3/4"
+    ],
+    "March": [
+        "march",
+        "march 4/4",
+        "march 2/4",
+        "marche"
+    ],
+    "Air": [
+        "air",
+        "slow air"
+    ],
+    "Strathspey": [
+        "strathspey",
+        "strathspey 4/4"
+    ],
+    "Galop": [
+        "Galop",
+        "Galopp"
+    ]
+}

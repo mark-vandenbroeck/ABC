@@ -1,0 +1,187 @@
+{
+    "C": [
+        "C",
+        "CM",
+        "C Major",
+        "Cmaj"
+    ],
+    "Cm": [
+        "Cm",
+        "c",
+        "C Minor",
+        "Cmin"
+    ],
+    "G": [
+        "G",
+        "GM",
+        "G Major",
+        "Gmaj"
+    ],
+    "Gm": [
+        "Gm",
+        "g",
+        "G Minor",
+        "Gmin"
+    ],
+    "D": [
+        "D",
+        "DM",
+        "D Major",
+        "Dmaj"
+    ],
+    "Dm": [
+        "Dm",
+        "D Minor",
+        "Dmin"
+    ],
+    "A": [
+        "A",
+        "AM",
+        "A Major",
+        "Amaj"
+    ],
+    "Am": [
+        "Am",
+        "A Minor",
+        "Amin"
+    ],
+    "E": [
+        "E",
+        "EM",
+        "E Major",
+        "Emaj"
+    ],
+    "Em": [
+        "Em",
+        "E Minor",
+        "Emin"
+    ],
+    "B": [
+        "B",
+        "BM",
+        "B Major",
+        "Bmaj"
+    ],
+    "Bm": [
+        "Bm",
+        "B Minor",
+        "Bmin"
+    ],
+    "F": [
+        "F",
+        "FM",
+        "F Major",
+        "Fmaj"
+    ],
+    "Fm": [
+        "Fm",
+        "F Minor",
+        "Fmin"
+    ],
+    "Bb": [
+        "Bb",
+        "BbM",
+        "Bb Major",
+        "Bbmaj"
+    ],
+    "Bbm": [
+        "Bbm",
+        "Bb Minor",
+        "Bbmin"
+    ],
+    "Eb": [
+        "Eb",
+        "EbM",
+        "Eb Major",
+        "Ebmaj"
+    ],
+    "Ebm": [
+        "Ebm",
+        "Eb Minor",
+        "Ebmin"
+    ],
+    "Ab": [
+        "Ab",
+        "AbM",
+        "Ab Major",
+        "Abmaj"
+    ],
+    "Abm": [
+        "Abm",
+        "Ab Minor",
+        "Abmin"
+    ],
+    "Db": [
+        "Db",
+        "DbM",
+        "Db Major",
+        "Dbmaj"
+    ],
+    "Dbm": [
+        "Dbm",
+        "Db Minor",
+        "Dbmin"
+    ],
+    "F#": [
+        "F#",
+        "F#M",
+        "F# Major",
+        "F#maj"
+    ],
+    "F#m": [
+        "F#m",
+        "F# Minor",
+        "F#min"
+    ],
+    "C#": [
+        "C#",
+        "C#M",
+        "C# Major",
+        "C#maj"
+    ],
+    "C#m": [
+        "C#m",
+        "C# Minor",
+        "C#min"
+    ],
+    "Ador": [
+        "Ador",
+        "A Dorian",
+        "Adorian"
+    ],
+    "Ddor": [
+        "Ddor",
+        "D Dorian",
+        "Ddorian"
+    ],
+    "Edor": [
+        "Edor",
+        "E Dorian",
+        "Edorian"
+    ],
+    "Gdor": [
+        "Gdor",
+        "G Dorian",
+        "Gdorian"
+    ],
+    "Amix": [
+        "Amix",
+        "A Mixolydian",
+        "A mix"
+    ],
+    "Dmix": [
+        "Dmix",
+        "D Mixolydian",
+        "D mix"
+    ],
+    "Gmix": [
+        "Gmix",
+        "G Mixolydian",
+        "G mix"
+    ],
+    "Emix": [
+        "Emix",
+        "E Mixolydian",
+        "E mix"
+    ]
+}

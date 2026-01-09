@@ -1,6 +1,9 @@
 from flask import Flask, render_template, jsonify, request
 import sqlite3
+import re
+from collections import defaultdict
 import os
+import json
 import threading
 import time
 import numpy as np
@@ -15,6 +18,138 @@ v_index = VectorIndex()
 def index():
     return render_template('abc_index.html')
 
+def _reduce_rhythms(raw_rhythms):
+    """
+    Groups rhythms by normalized form.
+    Prioritizes mappings defined in config/rhythm_aliases.json.
+    Fallback to automatic normalization (lowercase, alpha-numeric only).
+    """
+    def normalize(s):
+        if not s: return ""
+        return re.sub(r'[^a-z0-9]', '', s.lower())
+
+    # Load Aliases
+    aliases = {}
+    config_path = os.path.join(os.path.dirname(__file__), 'config', 'rhythm_aliases.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                aliases = json.load(f)
+        except Exception as e:
+            print(f"Error loading rhythm aliases: {e}")
+
+    # Create reverse mapping for aliases: variation -> canonical name
+    # Also normalize the variations in the config to match against normalized DB values if needed, 
+    # but exact match against raw DB value is safer/more explicit for the config.
+    # Actually, let's map normalized variation -> canonical name to be robust against spacing in DB.
+    
+    variation_to_canonical = {}
+    for canonical, variations in aliases.items():
+        for v in variations:
+            variation_to_canonical[normalize(v)] = canonical
+            # Also map the canonical name itself if it's not in the list
+            variation_to_canonical[normalize(canonical)] = canonical
+
+    groups = defaultdict(list)
+    
+    for r in raw_rhythms:
+        norm = normalize(r)
+        if not norm: continue
+        
+        # Check explicit alias first
+        if norm in variation_to_canonical:
+            canonical = variation_to_canonical[norm]
+            groups[canonical].append(r)
+        else:
+            # Fallback to automatic grouping by normalized form
+            groups[norm].append(r)
+            
+    display_names = []
+    variation_map = {}
+    
+    # Sort groups
+    # For aliases, the key in 'groups' is already the display name (Title Case from JSON key).
+    # For automatic groups, the key is the normalized string.
+    
+    sorted_groups = sorted(groups.items(), key=lambda x: len(x[1]), reverse=True)
+    
+    for key, variants in sorted_groups:
+        if key in aliases:
+            # It's an alias group, use the key directly as display name
+            display_name = key
+        else:
+            # Automatic group: finding best display name
+            candidates = sorted(variants, key=lambda x: (len(x), x))
+            display_name = candidates[0]
+            title_case = [v for v in candidates if v and v[0].isupper()]
+            if title_case:
+                display_name = title_case[0]
+            
+        display_names.append(display_name)
+        variation_map[display_name] = variants
+        
+    return sorted(display_names), variation_map
+
+def _reduce_keys(raw_keys):
+    """
+    Groups keys by normalized form.
+    Prioritizes mappings defined in config/key_aliases.json.
+    """
+    # Load Aliases
+    aliases = {}
+    config_path = os.path.join(os.path.dirname(__file__), 'config', 'key_aliases.json')
+    if os.path.exists(config_path):
+        try:
+            with open(config_path, 'r') as f:
+                aliases = json.load(f)
+        except Exception as e:
+            print(f"Error loading key aliases: {e}")
+
+    # Build reverse mapping
+    # Note: For keys, we trust the config file's entries exactly (case sensitive for lookup)
+    # But for robust matching against DB garbage, we might want to normalize too.
+    # Given the user's request ("AM" vs "Am"), we must be careful. 
+    # The config file has explicit lists. We will match DB values against these lists.
+    
+    variation_to_canonical = {}
+    for canonical, variations in aliases.items():
+        for v in variations:
+            # We map specific variations to the canonical key
+            # We treat DB values as "unknowns". 
+            # If DB value is "am" -> matches "Am" group if "am" is in the list.
+            variation_to_canonical[v] = canonical
+            # also map normalized version if not conflicting?
+            # User said: "AM" is major, "Am" is minor.
+            # So if DB has "AM", it should map to A. If DB has "Am", it maps to Am.
+            # This is handled if "AM" is in "A"'s list and "Am" is in "Am"'s list.
+            
+    groups = defaultdict(list)
+    
+    for k in raw_keys:
+        if not k: continue
+        # exact match first (case sensitive)
+        if k in variation_to_canonical:
+             groups[variation_to_canonical[k]].append(k)
+             continue
+             
+        # Normalize: try to match common patterns if not found?
+        # For now, let's keep unmatched keys separate or maybe simple grouping?
+        # Fallback: Just keep as is, or maybe simple whitespace strip
+        groups[k.strip()].append(k)
+            
+    display_names = []
+    variation_map = {}
+    
+    sorted_groups = sorted(groups.items(), key=lambda x: len(x[1]), reverse=True)
+    
+    for key, variants in sorted_groups:
+        # If it's a canonical key from aliases, use it.
+        # Otherwise use the key (which is the stripped raw string)
+        display_names.append(key)
+        variation_map[key] = variants
+        
+    return sorted(display_names), variation_map
+
 @app.route('/api/filters')
 def get_filters():
     """Get unique keys and rhythms for the UI dropdowns"""
@@ -23,10 +158,13 @@ def get_filters():
         cursor = conn.cursor()
         
         cursor.execute("SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL AND key != '' ORDER BY key ASC")
-        keys = [row[0] for row in cursor.fetchall()]
+        raw_keys = [row[0] for row in cursor.fetchall()]
+        keys, _ = _reduce_keys(raw_keys)
         
         cursor.execute("SELECT DISTINCT rhythm FROM tunes WHERE rhythm IS NOT NULL AND rhythm != '' ORDER BY rhythm ASC")
-        rhythms = [row[0] for row in cursor.fetchall()]
+        raw_rhythms = [row[0] for row in cursor.fetchall()]
+        
+        rhythms, _ = _reduce_rhythms(raw_rhythms)
 
         cursor.execute("SELECT DISTINCT meter FROM tunes WHERE meter IS NOT NULL AND meter != '' ORDER BY meter ASC")
         meters = [row[0] for row in cursor.fetchall()]
@@ -49,6 +187,7 @@ def search_tunes():
     rhythm = request.args.get('rhythm', '').strip()
     meter = request.args.get('meter', '').strip()
     composer = request.args.get('composer', '').strip()
+    mode = request.args.get('mode', '').strip().lower()
     limit = int(request.args.get('limit', 50))
     offset = int(request.args.get('offset', 0))
 
@@ -80,12 +219,81 @@ def search_tunes():
             params.append(f'%{title}%')
             
         if key:
-            sql += ' AND t.key = ?'
-            params.append(key)
+            # Fetch mapping to see if this is a group representative
+            cursor.execute("SELECT DISTINCT key FROM tunes WHERE key IS NOT NULL AND key != ''")
+            raw_keys_db = [row[0] for row in cursor.fetchall()]
+            _, key_map = _reduce_keys(raw_keys_db)
             
+            if key in key_map:
+                variations = key_map[key]
+                placeholders = ', '.join(['?'] * len(variations))
+                sql += f' AND t.key IN ({placeholders})'
+                params.extend(variations)
+            else:
+                sql += ' AND t.key = ?'
+                params.append(key)
+                
+        if mode:
+            # Mode filtering logic based on string patterns in 'key'
+            if mode == 'major':
+                # Major is default (no suffix) OR explicit 'maj', 'ion'
+                # AND must NOT match other mode patterns
+                # Matches: 'G', 'G Major', 'Gmaj', 'GIon'
+                # Excludes: 'Gm', 'Gmix', 'Gdor', etc.
+                sql += """ AND (
+                    (t.key LIKE '%Maj%' OR t.key LIKE '%maj%' OR t.key LIKE '%Ion%' OR t.key LIKE '%ion%')
+                    OR 
+                    (t.key NOT LIKE '%m%' AND t.key NOT LIKE '%M%' -- Exclude obvious minor/mix/etc if simply 'G' matches none below
+                     AND t.key NOT LIKE '%dor%' AND t.key NOT LIKE '%Dor%'
+                     AND t.key NOT LIKE '%mix%' AND t.key NOT LIKE '%Mix%'
+                     AND t.key NOT LIKE '%phr%' AND t.key NOT LIKE '%Phr%'
+                     AND t.key NOT LIKE '%lyd%' AND t.key NOT LIKE '%Lyd%'
+                     AND t.key NOT LIKE '%loc%' AND t.key NOT LIKE '%Loc%'
+                     AND t.key NOT LIKE '%aeo%' AND t.key NOT LIKE '%Aeo%'
+                    )
+                )"""
+            elif mode == 'minor':
+                # Matches 'm', 'min', 'aeo'
+                # But careful not to match 'mix', 'maj' if they contain 'm' (e.g. 'A maj' contains 'm')
+                # 'm' usually means minor if it's 'Gm' or 'G min'. 
+                # Be robust: 
+                sql += """ AND (
+                    t.key LIKE '%Min%' OR t.key LIKE '%min%' 
+                    OR t.key LIKE '%Aeo%' OR t.key LIKE '%aeo%'
+                    OR (t.key LIKE '%m%' AND t.key NOT LIKE '%maj%' AND t.key NOT LIKE '%Maj%'
+                        AND t.key NOT LIKE '%mix%' AND t.key NOT LIKE '%Mix%'
+                        AND t.key NOT LIKE '%lyd%' -- 'Lydian' has no 'm' usually, but safe guard
+                       )
+                )"""
+            elif mode == 'dorian':
+                sql += " AND (t.key LIKE '%Dor%' OR t.key LIKE '%dor%')"
+            elif mode == 'mixolydian':
+                sql += " AND (t.key LIKE '%Mix%' OR t.key LIKE '%mix%')"
+            elif mode == 'lydian':
+                # Lydian matches 'lyd' but NOT 'mixolydian' (which has 'lyd' inside 'mixolydian' string?) 
+                # Actually 'Mixolydian' contains 'lyd'. So distinct check needed.
+                sql += " AND (t.key LIKE '%Lyd%' OR t.key LIKE '%lyd%') AND (t.key NOT LIKE '%Mix%' AND t.key NOT LIKE '%mix%')"
+            elif mode == 'phrygian':
+                sql += " AND (t.key LIKE '%Phr%' OR t.key LIKE '%phr%')"
+            elif mode == 'locrian':
+                sql += " AND (t.key LIKE '%Loc%' OR t.key LIKE '%loc%')"
+
         if rhythm:
-            sql += ' AND t.rhythm = ?'
-            params.append(rhythm)
+            # First, fetch the mapping to see if this is a group representative
+            cursor.execute("SELECT DISTINCT rhythm FROM tunes WHERE rhythm IS NOT NULL AND rhythm != ''")
+            raw_rhythms_db = [row[0] for row in cursor.fetchall()]
+            _, rhythm_map = _reduce_rhythms(raw_rhythms_db)
+            
+            if rhythm in rhythm_map:
+                # It's a known group, search for ALL variations
+                variations = rhythm_map[rhythm]
+                placeholders = ', '.join(['?'] * len(variations))
+                sql += f' AND t.rhythm IN ({placeholders})'
+                params.extend(variations)
+            else:
+                # Fallback to exact match (or LIKE if we wanted fuzzy)
+                sql += ' AND t.rhythm = ?'
+                params.append(rhythm)
 
         if meter:
             sql += ' AND t.meter = ?'
