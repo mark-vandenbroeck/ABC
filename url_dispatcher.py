@@ -96,7 +96,7 @@ class URLDispatcher:
 
     def _log_scanner_loop(self, interval_seconds=60):
         """Periodically scan the fetcher log for DNS/NameResolution errors and mark hosts disabled with a reason."""
-        log_path = Path(DB_PATH).resolve().parent / 'fetcher.log'
+        log_path = Path(DB_PATH).resolve().parent / 'logs' / 'fetcher.log'
         pattern = re.compile(r"Failed to resolve '([^']+)'", re.IGNORECASE)
         while self.running:
             try:

@@ -44,16 +44,23 @@
             fill: var(--primary) !important;
         }
 
+        /* Fix for tempo input overlap */
+        input.abcjs-midi-tempo {
+            width: 80px !important;
+            padding: 4px 8px !important;
+            margin: 0 5px !important;
+        }
+
         :root {
             --primary: #6366f1;
             --primary-hover: #4f46e5;
-            --bg: #0f172a;
-            --card-bg: #1e293b;
-            --text-main: #f8fafc;
-            --text-dim: #94a3b8;
-            --accent: #f59e0b;
-            --border: #334155;
-            --glass: rgba(30, 41, 59, 0.7);
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #0f172a;
+            --text-dim: #64748b;
+            --accent: #d97706;
+            --border: #e2e8f0;
+            --glass: rgba(255, 255, 255, 0.7);
         }
 
         * {
@@ -149,7 +156,7 @@
         header h1 {
             font-size: 3.5rem;
             font-weight: 700;
-            color: white;
+            color: var(--text-main);
             margin-bottom: 10px;
         }
 
@@ -194,11 +201,11 @@
 
         input,
         select {
-            background: #0f172a;
+            background: var(--card-bg);
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 12px 16px;
-            color: white;
+            color: var(--text-main);
             font-family: inherit;
             font-size: 1rem;
             transition: all 0.3s ease;
@@ -334,7 +341,7 @@
             font-size: 1.4rem;
             font-weight: 600;
             margin-bottom: 12px;
-            color: white;
+            color: var(--text-main);
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
@@ -345,7 +352,7 @@
             font-size: 0.75rem;
             font-weight: 400;
             color: var(--text-dim);
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--bg);
             padding: 2px 8px;
             border-radius: 6px;
             white-space: nowrap;
@@ -360,11 +367,11 @@
 
         .badge {
             padding: 4px 12px;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--bg);
             border-radius: 8px;
             font-size: 0.85rem;
             color: var(--text-dim);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--border);
         }
 
         .badge b {
@@ -419,15 +426,16 @@
             position: relative;
             padding: 40px;
             overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         }
 
         .close-modal {
             position: absolute;
             top: 25px;
             right: 25px;
-            background: rgba(255, 255, 255, 0.05);
+            background: var(--bg);
             border: none;
-            color: white;
+            color: var(--text-main);
             width: 40px;
             height: 40px;
             border-radius: 50%;
@@ -752,11 +760,41 @@
                     <div id="audio-controls" class="abcjs-audio-container"></div>
                 </div>
 
+                <div style="margin-top: 15px; border-top: 1px solid var(--border); padding-top: 15px;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <h4 data-i18n="modal-transpose-title"
+                            style="color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin: 0;">
+                            Transponeren</h4>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px;"
+                                onclick="transposeTune(-1)">-1</button>
+                            <span id="transpose-value"
+                                style="font-weight: 600; min-width: 30px; text-align: center;">0</span>
+                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px;"
+                                onclick="transposeTune(1)">+1</button>
+                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px; font-size: 0.8rem;"
+                                onclick="transposeTune(0)" data-i18n="btn-reset">Reset</button>
+                        </div>
+                    </div>
+                </div>
+
                 <div style="margin-top: 25px;">
                     <h4 data-i18n="modal-score-title"
                         style="color: var(--accent); margin-bottom:10px; font-size: 0.8rem; text-transform: uppercase;">
                         Partituur</h4>
                     <div id="abc-view" class="abc-paper"></div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button class="btn-prominent" style="width: 100%; justify-content: center;" id="find-similar-btn">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <span data-i18n="btn-find-similar">Vind gelijkaardige melodieën</span>
+                    </button>
                 </div>
 
                 <div style="margin-top: 20px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
@@ -791,35 +829,9 @@
                     </button>
                 </div>
 
-                <div style="margin-top: 25px; border-top: 1px solid var(--border); padding-top: 20px;">
-                    <div
-                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                        <h4 data-i18n="modal-transpose-title"
-                            style="color: var(--accent); font-size: 0.8rem; text-transform: uppercase; margin: 0;">
-                            Transponeren</h4>
-                        <div style="display: flex; align-items: center; gap: 10px;">
-                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px;"
-                                onclick="transposeTune(-1)">-1</button>
-                            <span id="transpose-value"
-                                style="font-weight: 600; min-width: 30px; text-align: center;">0</span>
-                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px;"
-                                onclick="transposeTune(1)">+1</button>
-                            <button class="btn-secondary" style="padding: 5px 12px; height: 32px; font-size: 0.8rem;"
-                                onclick="transposeTune(0)" data-i18n="btn-reset">Reset</button>
-                        </div>
-                    </div>
-                </div>
 
-                <div style="margin-top: 20px;">
-                    <button class="btn-prominent" style="width: 100%; justify-content: center;" id="find-similar-btn">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                        <span data-i18n="btn-find-similar">Vind gelijkaardige melodieën</span>
-                    </button>
-                </div>
+
+
 
                 <div id="similar-tunes-section" style="margin-top: 30px; display: none;">
                     <h4 data-i18n="modal-similar-title"
@@ -1284,9 +1296,16 @@
                 currentMidiBuffer = new ABCJS.synth.CreateSynth();
                 currentMidiBuffer.init({
                     visualObj: visualObj,
-                    options: { program: program }
+                    options: {
+                        program: program,
+                        midiTranspose: currentTranspose
+                    }
                 }).then(function () {
-                    synthControl.setTune(visualObj, false, { chordsOff: true, program: program })
+                    synthControl.setTune(visualObj, false, {
+                        chordsOff: true,
+                        program: program,
+                        midiTranspose: currentTranspose
+                    })
                         .catch(err => console.warn("Audio synth error", err));
                 }).catch(err => console.warn("Audio init error", err));
             } else {
@@ -1349,7 +1368,7 @@
                         <circle cx="11" cy="11" r="8"></circle>
                         <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
                     </svg>
-                    ${t('btn-find-similar')}
+                    <span data-i18n="btn-find-similar">${t('btn-find-similar')}</span>
                 `;
 
                 if (data.error) { alert(data.error); return; }
