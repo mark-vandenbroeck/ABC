@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ABC Tune Explorer - User Manual</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-dim: #64748b;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            line-height: 1.6;
+            color: var(--text-main);
+            background: var(--bg);
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--primary) 0%, #a855f7 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            color: var(--text-dim);
+            font-size: 1.1rem;
+        }
+
+        section {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: var(--text-main);
+            font-size: 1.5rem;
+            margin-top: 0;
+            padding-bottom: 15px;
+            border-bottom: 2px solid var(--bg);
+        }
+
+        h3 {
+            color: var(--primary);
+            font-size: 1.2rem;
+            margin-top: 25px;
+        }
+
+        ul {
+            list-style-type: none;
+            padding-left: 0;
+        }
+
+        li {
+            margin-bottom: 10px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        li::before {
+            content: "•";
+            color: var(--primary);
+            position: absolute;
+            left: 0;
+            font-weight: bold;
+        }
+
+        code {
+            background: #f1f5f9;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9em;
+            color: #d946ef;
+        }
+
+        .tip {
+            background: #eff6ff;
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.95rem;
+        }
+
+        .back-btn {
+            display: inline-block;
+            margin-top: 20px;
+            text-decoration: none;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+
+        .back-btn:hover {
+            color: var(--primary);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0f172a;
+                --card-bg: #1e293b;
+                --text-main: #f1f5f9;
+                --text-dim: #94a3b8;
+                --border: #334155;
+            }
+
+            code {
+                background: #334155;
+            }
+
+            .tip {
+                background: rgba(99, 102, 241, 0.1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>ABC Tune Explorer</h1>
+            <div class="subtitle">User Manual</div>
+        </header>
+
+        <section id="search">
+            <h2>1. Search & Navigation</h2>
+            <p>The interface is designed to provide intuitive access to thousands of traditional melodies.</p>
+
+            <h3>Search Fields</h3>
+            <ul>
+                <li><strong>General Search</strong>: Search by (part of) the title, composer, notes, transcription,
+                    group, history, or source. Wildcards are not needed; the system searches for "contains" by default.
+                    You can
+                    also search by Tune ID (e.g., <code>77277</code>) directly.</li>
+            </ul>
+
+            <h3>Specific Filters</h3>
+            <ul>
+                <li><strong>Key</strong>: Filter by key. Use standard notation like <code>G</code>, <code>Am</code>,
+                    <code>Dmix</code>.
+                </li>
+                <li><strong>Mode</strong>: Filter by musical mode (e.g., Mixolydian, Dorian).</li>
+                <li><strong>Rhythm</strong>: Filter by dance type or meter, such as <code>Reel</code>, <code>Jig</code>,
+                    <code>Waltz</code>.
+                </li>
+                <li><strong>Composer</strong>: Search for tunes by or attributed to a specific person.</li>
+                <li><strong>Favorites</strong>: Show only tunes you have marked with a heart.</li>
+            </ul>
+        </section>
+
+        <section id="details">
+            <h2>2. Melody Details View</h2>
+            <p>Click "View melody" to open the details. Here you can read, listen to, and analyze the music.</p>
+
+            <h3>Audio & Display</h3>
+            <ul>
+                <li><strong>Play</strong>: Use the Play/Pause button to listen.</li>
+                <li><strong>Instrument</strong>: Choose from Piano, Violin, Flute, or Accordion.</li>
+                <li><strong>Tempo</strong>: Adjust the playback speed without changing the pitch.</li>
+                <li><strong>Transpose</strong>: Use the +1/-1 buttons to raise or lower the melody in real-time. Both
+                    sheet music and audio adapt instantly.</li>
+            </ul>
+
+            <h3>Export</h3>
+            <ul>
+                <li><strong>ABC</strong>: Download the source code.</li>
+                <li><strong>MIDI</strong>: Download the audio file.</li>
+                <li><strong>PDF</strong>: Download the sheet music for printing.</li>
+            </ul>
+        </section>
+
+        <section id="features">
+            <h2>3. Advanced Features</h2>
+
+            <h3>Find Similar Tunes</h3>
+            <p>Click this button at the bottom of the details to find variations. The system analyzes musical intervals.
+            </p>
+            <ul>
+                <li><strong>0.0</strong>: Exact match.</li>
+                <li><strong>
+                        < 10.0</strong>: Likely a close variation.</li>
+            </ul>
+
+            <div class="tip">
+                <strong>Tip:</strong> Your favorites are safely stored in our database, linked to your browser. You
+                won't lose them if you refresh the page!
+            </div>
+        </section>
+
+        <a href="javascript:window.close()" class="back-btn">← Close window</a>
+    </div>
+</body>
+
+</html>

@@ -612,6 +612,8 @@
 <body>
     <div class="container">
         <div class="lang-switcher">
+            <a href="/help" target="_blank" class="lang-btn" id="help-btn"
+                style="text-decoration: none; margin-right: 10px;" title="Help & Handleiding">?</a>
             <button class="lang-btn" id="lang-nl" onclick="setLanguage('nl')">NL</button>
             <button class="lang-btn" id="lang-en" onclick="setLanguage('en')">EN</button>
         </div>
@@ -1019,13 +1021,7 @@
             return translations[currentLang][key] || key;
         }
 
-        function setLanguage(lang) {
-            currentLang = lang;
-            localStorage.setItem('abc_lang', lang);
-            updateUI();
-        }
-
-        function updateUI() {
+        function applyTranslations() {
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 el.textContent = t(key);
@@ -1034,6 +1030,27 @@
                 const key = el.getAttribute('data-i18n-placeholder');
                 el.placeholder = t(key);
             });
+            document.documentElement.lang = currentLang;
+        }
+
+        function setLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('abc_lang', lang);
+
+            // Update UI buttons
+            document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`lang-${lang}`)?.classList.add('active');
+
+            // Update help link
+            document.getElementById('help-btn').href = `/help?lang=${lang}`;
+
+            applyTranslations();
+        }
+
+        function updateUI() {
+            // This function is now largely replaced by applyTranslations and setLanguage
+            // but keeping it for any other UI updates it might have handled.
+            // The translation part is now handled by loadTranslations -> applyTranslations
             document.querySelectorAll('.lang-btn').forEach(btn => btn.classList.remove('active'));
             const activeBtn = document.getElementById(`lang-${currentLang}`);
             if (activeBtn) activeBtn.classList.add('active');
@@ -1266,7 +1283,16 @@
                     <div class="badge">ID: <b>#${id}</b></div>
                     ${tune.status === 'skipped' ? `<div class="badge" style="border-color: #f87171; color: #f87171;">${t('skipped-label')}: <b>${tune.skip_reason}</b></div>` : ''}
                 `;
-                document.getElementById('modal-history').textContent = tune.notes || tune.history || t('no-extra-info');
+                let extraHtml = '';
+                if (tune.transcription) extraHtml += `<div style="margin-bottom:8px;"><strong>Transcription:</strong> ${tune.transcription}</div>`;
+                if (tune.notes) extraHtml += `<div style="margin-bottom:8px;"><strong>Notes:</strong> ${tune.notes}</div>`;
+                if (tune.group) extraHtml += `<div style="margin-bottom:8px;"><strong>Group:</strong> ${tune.group}</div>`;
+                if (tune.history) extraHtml += `<div style="margin-bottom:8px;"><strong>History:</strong> ${tune.history}</div>`;
+                if (tune.source) extraHtml += `<div style="margin-bottom:8px;"><strong>Source:</strong> ${tune.source}</div>`;
+
+                if (!extraHtml) extraHtml = `<div style="color: var(--text-dim); font-style: italic;">${t('no-extra-info')}</div>`;
+
+                document.getElementById('modal-history').innerHTML = extraHtml;
                 document.getElementById('modal-link').href = tune.url;
                 document.getElementById('raw-abc-view').textContent = tune.abc;
 
@@ -1515,4 +1541,5 @@
         window.onbeforeunload = function () { stopAudio(); };
     </script>
 </body>
+
 </html>

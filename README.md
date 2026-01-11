@@ -193,7 +193,7 @@ The interface is designed to provide intuitive access to thousands of traditiona
 
 #### Search Fields
 - **General Search Field**: A powerful all-rounder.
-    - *Title*: Type (part of) the title, e.g., "Glory".
+    - *Scope*: Searches in Title, Composer, Notes, Transcription, Group, History, and Source.
     - *Tune ID*: Know the ID number? Type it directly (e.g., `77277`) to open that exact tune.
     - *Wildcards*: Search is "contains" by default, so no `*` is needed.
 - **Specific Filters**:

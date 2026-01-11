@@ -18,6 +18,13 @@ v_index = VectorIndex()
 def index():
     return render_template('abc_index.html')
 
+@app.route('/help')
+def help_page():
+    lang = request.args.get('lang', 'nl')
+    if lang == 'en':
+        return render_template('help_en.html')
+    return render_template('help_nl.html')
+
 def _reduce_rhythms(raw_rhythms):
     """
     Groups rhythms by normalized form.
@@ -211,8 +218,18 @@ def search_tunes():
         params = []
         
         if query:
-            search_conditions = ['t.title LIKE ?', 't.composer LIKE ?', 't.notes LIKE ?']
-            search_params = [f'%{query}%', f'%{query}%', f'%{query}%']
+            # Search in title, composer, notes, transcription, group, history, and source
+            search_conditions = [
+                't.title LIKE ?', 
+                't.composer LIKE ?', 
+                't.notes LIKE ?',
+                't.transcription LIKE ?',
+                't."group" LIKE ?',
+                't.history LIKE ?',
+                't.source LIKE ?'
+            ]
+            # Add parameters for each condition
+            search_params = [f'%{query}%'] * 7
             
             if query.isdigit():
                 search_conditions.append('t.id = ?')
@@ -439,7 +456,7 @@ def get_tune(tune_id):
                 t.reference_number, t.title, t.composer, t.rhythm, t.key,
                 t.meter, t.unit_note_length, t.tempo, t.parts, t.transcription,
                 t.notes, t.history, t.origin, t.area, t.book, t.discography,
-                t.source, t.instruction, t.tune_body, tb.url, t.status, t.skip_reason
+                t.source, t.instruction, t.tune_body, tb.url, t.status, t.skip_reason, t."group"
             FROM tunes t
             JOIN tunebooks tb ON t.tunebook_id = tb.id
             WHERE t.id = ?
@@ -478,9 +495,13 @@ def get_tune(tune_id):
                 'composer': row[2],
                 'url': row[19],
                 'abc': full_abc,
+                'abc': full_abc,
                 'reference': row[0],
                 'history': row[11],
+                'source': row[16],
                 'notes': row[10],
+                'transcription': row[9],
+                'group': row[22],
                 'status': row[20],
                 'skip_reason': row[21],
                 'meter': row[5],
