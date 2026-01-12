@@ -46,3 +46,14 @@ run/
 *.log
 data/
 
+
+# Certificates
+stats_certs/
+*.crt
+*.key
+*.csr
+*.srl
+
+# SQLite WAL/SHM
+*.db-shm
+*.db-wal

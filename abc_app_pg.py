@@ -184,24 +184,21 @@ def search_tunes():
         sql += ' WHERE 1=1 '
         
         if query:
-            # PostgreSQL ILIKE for case-insensitive search
-            search_conditions = [
-                't.title ILIKE %s', 
-                't.composer ILIKE %s', 
-                't.notes ILIKE %s',
-                't.transcription ILIKE %s',
-                't."group" ILIKE %s',
-                't.history ILIKE %s',
-                't.source ILIKE %s'
-            ]
-            search_params = [f'%{query}%'] * 7
-            
+            # Full Text Search
+            # Use websearch_to_tsquery for natural language search (supports "quoted phrases", -exclude, or)
             if query.isdigit():
-                search_conditions.append('t.id = %s')
-                search_params.append(int(query))
-                
-            sql += ' AND (' + ' OR '.join(search_conditions) + ')'
-            params += search_params
+                 # Keep ID search as fallback/addition
+                 sql += ' AND (t.search_vector @@ websearch_to_tsquery(\'simple\', %s) OR t.id = %s)'
+                 params.extend([query, int(query)])
+            else:
+                 sql += ' AND t.search_vector @@ websearch_to_tsquery(\'simple\', %s)'
+                 params.append(query)
+            
+            # Default sort by rank if no other sort is implied (though currently we sort by title ASC at end)
+            # We will handle ranking in the ORDER BY clause later if needed, but for now just filtering.
+            # To sort by rank, we'd need to modify the select list and order by.
+            # Let's add rank to select for debugging or future use, but keep simple for now.
+            pass
             
         if title:
             sql += ' AND t.title ILIKE %s'
@@ -223,38 +220,39 @@ def search_tunes():
                 
         if mode:
             # Mode filtering logic (ILIKES already case insensitive in PG, but keeping logic)
+            # escape % as %% for psycopg2
             if mode == 'major':
                 sql += """ AND (
-                    (t.key ILIKE '%Maj%' OR t.key ILIKE '%Ion%')
+                    (t.key ILIKE '%%Maj%%' OR t.key ILIKE '%%Ion%%')
                     OR 
-                    (t.key NOT ILIKE '%m%' 
-                     AND t.key NOT ILIKE '%dor%'
-                     AND t.key NOT ILIKE '%mix%'
-                     AND t.key NOT ILIKE '%phr%'
-                     AND t.key NOT ILIKE '%lyd%'
-                     AND t.key NOT ILIKE '%loc%'
-                     AND t.key NOT ILIKE '%aeo%'
+                    (t.key NOT ILIKE '%%m%%' 
+                     AND t.key NOT ILIKE '%%dor%%'
+                     AND t.key NOT ILIKE '%%mix%%'
+                     AND t.key NOT ILIKE '%%phr%%'
+                     AND t.key NOT ILIKE '%%lyd%%'
+                     AND t.key NOT ILIKE '%%loc%%'
+                     AND t.key NOT ILIKE '%%aeo%%'
                     )
                 )"""
             elif mode == 'minor':
                 sql += """ AND (
-                    t.key ILIKE '%Min%' 
-                    OR t.key ILIKE '%Aeo%'
-                    OR (t.key ILIKE '%m%' AND t.key NOT ILIKE '%maj%'
-                        AND t.key NOT ILIKE '%mix%'
-                        AND t.key NOT ILIKE '%lyd%' 
+                    t.key ILIKE '%%Min%%' 
+                    OR t.key ILIKE '%%Aeo%%'
+                    OR (t.key ILIKE '%%m%%' AND t.key NOT ILIKE '%%maj%%'
+                        AND t.key NOT ILIKE '%%mix%%'
+                        AND t.key NOT ILIKE '%%lyd%%' 
                        )
                 )"""
             elif mode == 'dorian':
-                sql += " AND (t.key ILIKE '%Dor%')"
+                sql += " AND (t.key ILIKE '%%Dor%%')"
             elif mode == 'mixolydian':
-                sql += " AND (t.key ILIKE '%Mix%')"
+                sql += " AND (t.key ILIKE '%%Mix%%')"
             elif mode == 'lydian':
-                sql += " AND (t.key ILIKE '%Lyd%') AND (t.key NOT ILIKE '%Mix%')"
+                sql += " AND (t.key ILIKE '%%Lyd%%') AND (t.key NOT ILIKE '%%Mix%%')"
             elif mode == 'phrygian':
-                sql += " AND (t.key ILIKE '%Phr%')"
+                sql += " AND (t.key ILIKE '%%Phr%%')"
             elif mode == 'locrian':
-                sql += " AND (t.key ILIKE '%Loc%')"
+                sql += " AND (t.key ILIKE '%%Loc%%')"
 
         if rhythm:
             cursor.execute("SELECT DISTINCT rhythm FROM tunes WHERE rhythm IS NOT NULL AND rhythm != ''")
@@ -302,8 +300,12 @@ def search_tunes():
         total_count = cursor.fetchone()['count']
         
         # Get results
-        sql += ' ORDER BY t.title ASC LIMIT %s OFFSET %s'
-        params += [limit, offset]
+        if query:
+            sql += ' ORDER BY ts_rank(t.search_vector, websearch_to_tsquery(\'simple\', %s)) DESC, t.title ASC LIMIT %s OFFSET %s'
+            params += [query, limit, offset]
+        else:
+            sql += ' ORDER BY t.title ASC LIMIT %s OFFSET %s'
+            params += [limit, offset]
         
         cursor.execute(sql, params)
         rows = cursor.fetchall()
