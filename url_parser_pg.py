@@ -1,0 +1,226 @@
+import socket
+import json
+import time
+import signal
+import sys
+import os
+import logging
+from logging.handlers import RotatingFileHandler
+from pathlib import Path
+from abc_parser import Tunebook
+from database_pg import get_db_connection
+
+# Dispatcher configuration
+DISPATCHER_HOST = 'localhost'
+DISPATCHER_PORT = 8888
+
+logger = logging.getLogger('url_parser_pg')
+
+class URLParser:
+    def __init__(self, parser_id):
+        self.parser_id = parser_id
+        self.setup_logging()
+        self.running = True
+        signal.signal(signal.SIGINT, self.signal_handler)
+        signal.signal(signal.SIGTERM, self.signal_handler)
+
+    def setup_logging(self):
+        """Configure logging for this specific parser instance"""
+        log_dir = Path(__file__).resolve().parent / 'logs'
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = log_dir / f'parser.{self.parser_id}.log'
+        
+        # Configure root logger to capture library logs (like abc_parser)
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.INFO)
+        
+        # Clear existing handlers to avoid duplicates
+        for handler in root_logger.handlers[:]:
+            root_logger.removeHandler(handler)
+
+        logger.handlers = []
+
+        # 3 MB = 3145728 bytes
+        fh = RotatingFileHandler(log_file, maxBytes=3145728, backupCount=4)
+        fh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
+        root_logger.addHandler(fh)
+        
+        # Also log to stdout so it captures into parser_out.log in app.py
+        sh = logging.StreamHandler(sys.stdout)
+        sh.setFormatter(logging.Formatter('%(asctime)s %(levelname)s [%(name)s]: %(message)s'))
+        root_logger.addHandler(sh)
+        
+        logger.info(f"Logging initialized for parser {self.parser_id} (PostgreSQL version)")
+
+    def signal_handler(self, sig, frame):
+        logger.info(f"Parser {self.parser_id} shutting down...")
+        self.running = False
+        sys.exit(0)
+
+    def save_tunebook(self, tunebook_data):
+        """Save tunebook and its tunes to the database"""
+        conn = get_db_connection()
+        try:
+            cursor = conn.cursor()
+            
+            # 1. Insert into tunebooks
+            # Use RETURNING id to get the ID
+            cursor.execute('''
+                INSERT INTO tunebooks (url, created_at)
+                VALUES (%s, CURRENT_TIMESTAMP)
+                ON CONFLICT (url) DO NOTHING
+            ''', (tunebook_data['url'],))
+            
+            # Since ON CONFLICT DO NOTHING doesn't return ID if conflict, 
+            # we need to select it.
+            cursor.execute('SELECT id FROM tunebooks WHERE url = %s', (tunebook_data['url'],))
+            row = cursor.fetchone()
+            if not row:
+                # Should not happen unless insert failed silently
+                logger.error(f"Failed to retrieve tunebook ID for {tunebook_data['url']}")
+                conn.rollback()
+                return False
+            
+            tunebook_id = row['id'] if isinstance(row, dict) else row[0]
+
+            # 2. Prevent duplicate tunes: Delete existing tunes if we are re-parsing
+            cursor.execute('DELETE FROM tunes WHERE tunebook_id = %s', (tunebook_id,))
+            
+            # 3. Trigger re-indexing: Reset tunebook status to ''
+            cursor.execute("UPDATE tunebooks SET status = '' WHERE id = %s", (tunebook_id,))
+
+            # 4. Insert into tunes
+            for tune in tunebook_data['tunes']:
+                meta = tune['metadata']
+                # PostgreSQL uses %s placeholders
+                cursor.execute('''
+                    INSERT INTO tunes (
+                        tunebook_id, reference_number, title, composer, origin, area, 
+                        meter, unit_note_length, tempo, parts, transcription, notes, 
+                        "group", history, key, rhythm, book, discography, source, 
+                        instruction, tune_body, pitches, status, skip_reason
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ''', (
+                    tunebook_id,
+                    meta.get('reference_number'),
+                    meta.get('title', tune['title']),
+                    meta.get('composer'),
+                    meta.get('origin'),
+                    meta.get('area'),
+                    meta.get('meter'),
+                    meta.get('unit_note_length'),
+                    meta.get('tempo'),
+                    meta.get('parts'),
+                    meta.get('transcription'),
+                    meta.get('notes'),
+                    meta.get('group'),
+                    meta.get('history'),
+                    meta.get('key'),
+                    meta.get('rhythm'),
+                    meta.get('book'),
+                    meta.get('discography'),
+                    meta.get('source'),
+                    meta.get('instruction'),
+                    tune['tune_body'],
+                    tune['pitches'],
+                    tune.get('status', 'parsed'),
+                    tune.get('skip_reason')
+                ))
+            
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Error saving tunebook {tunebook_data['url']}: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+
+    def process_url(self, url_id, url):
+        """Fetch content from DB, parse and save"""
+        logger.info(f"Processing URL: {url}")
+        try:
+            # Tunebook class handles fetching assuming standard request behavior or local file?
+            # Looking at abc_parser.py (implied), it likely does requests.get(url).
+            # This logic doesn't change for PG vs SQLite, as it operates on the URL string.
+            tunebook = Tunebook(url)
+            
+            if tunebook.success and tunebook.tunes:
+                logger.info(f"Found {len(tunebook.tunes)} tunes in {url}")
+                save_success = self.save_tunebook(tunebook.to_dict())
+                return True, save_success
+            else:
+                logger.info(f"No valid tunes found in {url}")
+                return True, False # Success in processing, but no ABC found
+        except Exception as e:
+            logger.error(f"Error processing {url}: {e}")
+            return False, False
+
+    def communicate_with_dispatcher(self):
+        """Communicate with dispatcher to get a batch of URLs and submit results"""
+        try:
+            with socket.create_connection((DISPATCHER_HOST, DISPATCHER_PORT), timeout=5) as sock:
+                # 1. Request batch of URLs
+                request = {'action': 'get_fetched_url'}
+                sock.sendall((json.dumps(request) + '\n').encode('utf-8'))
+                
+                f = sock.makefile('r', encoding='utf-8')
+                response_data = f.readline()
+                if not response_data:
+                    return
+                
+                response = json.loads(response_data)
+                if response['status'] == 'no_urls' or 'urls' not in response:
+                    return
+                
+                if response['status'] == 'ok':
+                    urls_batch = response['urls']
+                    logger.info(f"Parser {self.parser_id} received batch of {len(urls_batch)} URLs")
+                    
+                    processed_base_urls = set()
+                    
+                    for url_info in urls_batch:
+                        url_id = url_info['id']
+                        url = url_info['url']
+                        
+                        # Optimization: Skip if we already processed this base URL in this batch
+                        base_url = url.split('#')[0]
+                        if base_url in processed_base_urls:
+                            logger.info(f"Skipping redundant fragment processing for {url}")
+                            # Report success but don't re-parse
+                            report = {
+                                'action': 'submit_parsed_result',
+                                'url_id': url_id,
+                                'has_abc': True # Assume it has ABC if we processed base URL successfully
+                            }
+                            sock.sendall((json.dumps(report) + '\n').encode('utf-8'))
+                            f.readline()
+                            continue
+                        
+                        # 2. Process the URL
+                        proc_success, has_abc = self.process_url(url_id, url)
+                        if proc_success:
+                            processed_base_urls.add(base_url)
+                        
+                        # 3. Report back to dispatcher over the same socket
+                        report = {
+                            'action': 'submit_parsed_result',
+                            'url_id': url_id,
+                            'has_abc': has_abc
+                        }
+                        sock.sendall((json.dumps(report) + '\n').encode('utf-8'))
+                        f.readline() # Wait for ACK
+        except Exception as e:
+            logger.error(f"Communication error: {e}")
+
+    def run(self):
+        logger.info(f"URL Parser {self.parser_id} started (PostgreSQL)...")
+        while self.running:
+            self.communicate_with_dispatcher()
+            # Wait a bit if no work was found or after processing
+            time.sleep(2)
+
+if __name__ == '__main__':
+    parser_id = sys.argv[1] if len(sys.argv) > 1 else '1'
+    parser = URLParser(parser_id)
+    parser.run()

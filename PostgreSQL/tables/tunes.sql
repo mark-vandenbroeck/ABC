@@ -1,0 +1,31 @@
+DROP TABLE IF EXISTS tunes;
+
+CREATE TABLE tunes (
+    id              SERIAL PRIMARY KEY,
+    tunebook_id     INTEGER,
+    reference_number TEXT,
+    title           TEXT,
+    composer        TEXT,
+    origin          TEXT,
+    area            TEXT,
+    meter           TEXT,
+    unit_note_length TEXT,
+    tempo           TEXT,
+    parts           TEXT,
+    transcription   TEXT,
+    notes           TEXT,
+    "group"         TEXT,
+    history         TEXT,
+    key             TEXT,
+    rhythm          TEXT,
+    book            TEXT,
+    discography     TEXT,
+    source          TEXT,
+    instruction     TEXT,
+    tune_body       TEXT,
+    intervals       DOUBLE PRECISION[],
+    pitches         DOUBLE PRECISION[],
+    status          TEXT DEFAULT 'parsed',
+    skip_reason     TEXT,
+    FOREIGN KEY(tunebook_id) REFERENCES tunebooks(id)
+);

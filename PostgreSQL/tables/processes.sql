@@ -1,0 +1,7 @@
+CREATE TABLE processes (
+    id SERIAL PRIMARY KEY,
+    pid INTEGER,
+    type TEXT NOT NULL,
+    status TEXT DEFAULT 'running',
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);

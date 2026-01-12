@@ -1,0 +1,5 @@
+CREATE TABLE mime_types (
+    id SERIAL PRIMARY KEY,
+    pattern TEXT UNIQUE NOT NULL,
+    enabled BOOLEAN DEFAULT TRUE
+);

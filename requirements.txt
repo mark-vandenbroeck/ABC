@@ -5,3 +5,4 @@ lxml==4.9.3
 numpy==1.26.2
 faiss-cpu
 dtaidistance
+psycopg2-binary
