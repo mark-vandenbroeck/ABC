@@ -144,15 +144,15 @@ class ABCIndexer:
                 
                 intervals_list = calculate_intervals(pitches)
                 
+                # Update intervals column (even if empty) to mark as processed
+                final_intervals = intervals_list if intervals_list else []
+                cursor.execute('''
+                    UPDATE tunes 
+                    SET intervals = %s 
+                    WHERE id = %s
+                ''', (final_intervals, tune_id))
+                
                 if intervals_list:
-                    # Update intervals column
-                    # Postgres column 'intervals' is DOUBLE PRECISION[]
-                    cursor.execute('''
-                        UPDATE tunes 
-                        SET intervals = %s 
-                        WHERE id = %s
-                    ''', (intervals_list, tune_id))
-                    
                     # Generate windows for FAISS
                     windows = self.vector_index.generate_windows(intervals_list)
                     

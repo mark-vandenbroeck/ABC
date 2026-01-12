@@ -25,7 +25,8 @@
     ],
     "Hornpipe": [
         "hornpipe",
-        "hornpipe 4/4"
+        "hornpipe 4/4",
+        "nornpipe"
     ],
     "Waltz": [
         "waltz",
@@ -61,7 +62,8 @@
     ],
     "Air": [
         "air",
-        "slow air"
+        "slow air",
+        "aire"
     ],
     "Strathspey": [
         "strathspey",
@@ -70,5 +72,9 @@
     "Galop": [
         "Galop",
         "Galopp"
+    ],
+    "Horra": [
+        "hora",
+        "horra"
     ]
 }

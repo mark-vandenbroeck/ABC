@@ -81,7 +81,7 @@ def _reduce_rhythms(raw_rhythms):
         display_names.append(display_name)
         variation_map[display_name] = variants
         
-    return sorted(display_names), variation_map
+    return sorted(display_names, key=lambda x: x.lower()), variation_map
 
 def _reduce_keys(raw_keys):
     """

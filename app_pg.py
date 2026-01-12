@@ -1054,15 +1054,22 @@ def get_stats():
     try:
         stats = {}
         
-        # Total URLs
-        cursor.execute('SELECT COUNT(*) as count FROM urls')
+        # Total URLs (excluding disabled hosts)
+        cursor.execute('''
+            SELECT COUNT(u.*) as count 
+            FROM urls u
+            LEFT JOIN hosts h ON u.host = h.host
+            WHERE h.disabled IS NOT TRUE OR h.disabled IS NULL
+        ''')
         stats['total_urls'] = cursor.fetchone()['count']
         
-        # URLs by status
+        # URLs by status (excluding disabled hosts)
         cursor.execute('''
-            SELECT status, COUNT(*) as count
-            FROM urls 
-            GROUP BY status
+            SELECT u.status, COUNT(*) as count
+            FROM urls u
+            LEFT JOIN hosts h ON u.host = h.host
+            WHERE h.disabled IS NOT TRUE OR h.disabled IS NULL
+            GROUP BY u.status
         ''')
         stats['by_status'] = {row['status'] or 'new': row['count'] for row in cursor.fetchall()}
         
@@ -1107,11 +1114,13 @@ def get_stats():
         except Exception:
             stats['faiss_index_size'] = 0
 
-        # Link Distance vs Status breakdown
+        # Link Distance vs Status breakdown (excluding disabled hosts)
         cursor.execute('''
-            SELECT link_distance, status, COUNT(*) as count
-            FROM urls 
-            GROUP BY link_distance, status
+            SELECT u.link_distance, u.status, COUNT(*) as count
+            FROM urls u
+            LEFT JOIN hosts h ON u.host = h.host
+            WHERE h.disabled IS NOT TRUE OR h.disabled IS NULL
+            GROUP BY u.link_distance, u.status
         ''')
         breakdown = {}
         for row in cursor.fetchall():

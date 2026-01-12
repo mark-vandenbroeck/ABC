@@ -214,7 +214,14 @@ class URLParser:
             logger.error(f"Communication error: {e}")
 
     def run(self):
-        logger.info(f"URL Parser {self.parser_id} started (PostgreSQL)...")
+        try:
+            conn = get_db_connection()
+            dsn = conn.get_dsn_parameters()
+            logger.info(f"URL Parser {self.parser_id} started (PostgreSQL database={dsn.get('dbname')} user={dsn.get('user')})...")
+            conn.close()
+        except:
+            logger.info(f"URL Parser {self.parser_id} started (PostgreSQL unknown)...")
+            
         while self.running:
             self.communicate_with_dispatcher()
             # Wait a bit if no work was found or after processing

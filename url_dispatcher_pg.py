@@ -44,8 +44,13 @@ class URLDispatcher:
         self._log_thread = threading.Thread(target=self._log_scanner_loop, daemon=True)
         self._log_thread.start()
 
+        # Host re-enable thread
+        self._host_thread = threading.Thread(target=self._host_reenable_loop, daemon=True)
+        self._host_thread.start()
+
         # Release stale URLs on startup
         self._reset_stale_urls()
+        self._reenable_timeout_hosts()
 
         # Write PID file for management dashboard
         self._write_pid()
@@ -184,6 +189,33 @@ class URLDispatcher:
             except Exception as e:
                 print(f"Log scanner error: {e}")
                 time.sleep(interval_seconds)
+
+    def _host_reenable_loop(self, interval_seconds=600):
+        """Periodically check for hosts that can be re-enabled."""
+        while self.running:
+            self._reenable_timeout_hosts()
+            time.sleep(interval_seconds)
+
+    def _reenable_timeout_hosts(self):
+        """Re-enable hosts that were disabled due to timeout > 24 hours ago."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor()
+            # PostgreSQL interval syntax
+            cur.execute("""
+                UPDATE hosts 
+                SET disabled = FALSE, disabled_reason = NULL, disabled_at = NULL
+                WHERE disabled = TRUE 
+                AND disabled_reason = 'timeout' 
+                AND disabled_at <= NOW() - INTERVAL '24 hours'
+            """)
+            count = cur.rowcount
+            conn.commit()
+            conn.close()
+            if count > 0:
+                print(f"Re-enabled {count} hosts (previously disabled due to timeout)")
+        except Exception as e:
+            print(f"Error re-enabling timeout hosts: {e}")
 
     def _reset_stale_urls(self, timeout_seconds=300):
         """Release URLs that were stuck in dispatched/parsing/indexing state from a previous session."""
