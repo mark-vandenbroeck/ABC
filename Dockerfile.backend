@@ -1,0 +1,26 @@
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies needed for lxml, psycopg2 and runtime
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    libxslt1-dev \
+    zlib1g-dev \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements and install
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application files
+COPY . .
+
+# Ensure run and logs directories exist
+RUN mkdir -p run logs
+
+EXPOSE 5500
+
+CMD ["python", "app_pg.py"]

@@ -60,6 +60,7 @@ De Dispatcher fungeert als het "brein" van de crawler en hanteert een geavanceer
 
 ## Installatie
 
+### Lokale Installatie
 1. Installeer de systeem-dependencies (bijv. `faiss-cpu`, `numpy`, `music21`):
 ```bash
 pip install -r requirements.txt
@@ -68,6 +69,24 @@ pip install -r requirements.txt
 2. Initialiseer de database:
 ```bash
 python database.py
+```
+
+### Draaien via Docker
+
+Je kan het volledige systeem (zowel de Management Backend als de Tune Explorer Frontend) draaien in geïsoleerde Docker containers, terwijl de PostgreSQL database op je lokale host-systeem blijft staan.
+
+1. Zorg ervoor dat Docker en Docker Compose geïnstalleerd zijn.
+2. Bouw en start de containers in detached modus:
+```bash
+docker-compose up -d --build
+```
+3. De web interfaces zijn nu beschikbaar:
+   - Management Dashboard: `http://localhost:5500`
+   - ABC Tune Explorer: `http://localhost:5501`
+
+Om de containers weer te stoppen:
+```bash
+docker-compose down
 ```
 
 ## Data & Process Flow
