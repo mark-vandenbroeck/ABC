@@ -16,7 +16,7 @@ services:
       - DB_NAME=abc
       - DB_USER=mark
       - DB_PASS=V3nger!12
-      - DB_SSLMODE=verify-full
+      - DB_SSLMODE=verify-ca
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data
@@ -37,7 +37,7 @@ services:
       - DB_NAME=abc
       - DB_USER=mark
       - DB_PASS=V3nger!12
-      - DB_SSLMODE=verify-full
+      - DB_SSLMODE=verify-ca
     volumes:
       - ./logs:/app/logs
       - ./data:/app/data

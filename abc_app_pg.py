@@ -10,6 +10,11 @@ import numpy as np
 from database_pg import get_db_connection
 from vector_index import VectorIndex
 from dtaidistance import dtw
+import traceback
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 app = Flask(__name__)
 v_index = VectorIndex()
@@ -149,6 +154,8 @@ def get_filters():
             'meters': meters
         })
     except Exception as e:
+        print("Error in /api/filters:")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/search', methods=['GET'])
@@ -181,7 +188,7 @@ def search_tunes():
             sql += ' JOIN user_favorites uf ON t.id = uf.tune_id AND uf.user_id = %s '
             params.append(user_id)
             
-        sql += ' WHERE 1=1 '
+        sql += ' WHERE t.visible = TRUE AND tb.visible = TRUE '
         
         if query:
             # Full Text Search
@@ -333,6 +340,8 @@ def search_tunes():
             'offset': offset
         })
     except Exception as e:
+        print("Error in /api/search:")
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/favorites/<user_id>', methods=['GET'])
@@ -414,7 +423,7 @@ def get_tune(tune_id):
                 t.source, t.instruction, t.tune_body, tb.url, t.status, t.skip_reason, t."group"
             FROM tunes t
             JOIN tunebooks tb ON t.tunebook_id = tb.id
-            WHERE t.id = %s
+            WHERE t.id = %s AND t.visible = TRUE AND tb.visible = TRUE
         ''', (tune_id,))
         row = cursor.fetchone()
         conn.close()
@@ -444,6 +453,7 @@ def get_tune(tune_id):
             full_abc = "\n".join(abc_headers) + "\n" + row['tune_body']
 
             return jsonify({
+                'id': tune_id,
                 'title': row['title'],
                 'key': row['key'],
                 'rhythm': row['rhythm'],
@@ -500,7 +510,7 @@ def get_similar_tunes(tune_id):
         cursor = conn.cursor()
         
         # 1. Get query tune intervals
-        cursor.execute('SELECT intervals FROM tunes WHERE id = %s', (tune_id,))
+        cursor.execute('SELECT intervals FROM tunes t JOIN tunebooks tb ON t.tunebook_id = tb.id WHERE t.id = %s AND t.visible = TRUE AND tb.visible = TRUE', (tune_id,))
         row = cursor.fetchone()
         
         # In PG, intervals is a float array, retrieved as a Python list of floats.
@@ -522,9 +532,11 @@ def get_similar_tunes(tune_id):
         # 3. Fetch intervals for candidates
         placeholders = ', '.join(['%s'] * len(candidate_ids))
         cursor.execute(f'''
-            SELECT id, title, key, rhythm, composer, intervals 
-            FROM tunes 
-            WHERE id IN ({placeholders})
+            SELECT t.id, t.title, t.key, t.rhythm, t.composer, t.intervals 
+            FROM tunes t
+            JOIN tunebooks tb ON t.tunebook_id = tb.id
+            WHERE t.id IN ({placeholders})
+            AND t.visible = TRUE AND tb.visible = TRUE
         ''', candidate_ids)
         
         candidate_rows = cursor.fetchall()
@@ -614,6 +626,89 @@ def sync_faiss_loop():
         except Exception as e:
             print(f"Sync Worker error: {e}")
             time.sleep(30)
+
+@app.route('/api/request-removal', methods=['POST'])
+def request_removal():
+    """Send a removal request email"""
+    data = request.json
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+        
+    required = ['name', 'email', 'reason', 'type', 'id']
+    for field in required:
+        if not data.get(field):
+            return jsonify({'error': f'Missing field: {field}'}), 400
+            
+    try:
+        # Check if running locally/dry-run or real SMTP available
+        smtp_host = os.environ.get('SMTP_HOST')
+        smtp_port = int(os.environ.get('SMTP_PORT', 587))
+        smtp_user = os.environ.get('SMTP_USER')
+        smtp_pass = os.environ.get('SMTP_PASS')
+
+        # If it's a book removal request, lookup the tunebook_id from the tune_id
+        tunebook_id = None
+        if data['type'] == 'book':
+            try:
+                conn = get_db_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT tunebook_id FROM tunes WHERE id = %s", (data['id'],))
+                row = cur.fetchone()
+                conn.close()
+                if row:
+                    tunebook_id = row['tunebook_id']
+            except Exception as e:
+                print(f"Error fetching tunebook_id: {e}")
+
+        subject_id_str = f"#{data['id']}"
+        if tunebook_id:
+            subject_id_str += f" (Tunebook #{tunebook_id})"
+        
+        subject = f"Removal Request: {data['type']} {subject_id_str}"
+        
+        body_extra_info = f"ID: {data['id']}"
+        if tunebook_id:
+            body_extra_info += f"\n        Tunebook ID: {tunebook_id}"
+
+        body = f"""
+        New Removal Request received.
+        
+        Requester: {data['name']} ({data['email']})
+        Type: {data['type']}
+        {body_extra_info}
+        Reason:
+        {data['reason']}
+        
+        To process this request, go to the Management Dashboard -> Tunes Management.
+        Search for ID: {tunebook_id if tunebook_id else data['id']}
+        """
+        
+        if not smtp_host or not smtp_user:
+            # Fallback to logging for dev/dry-run
+            print(f"--- MOCK EMAIL SENDING ---")
+            print(f"To: mark.vandenbroeck@gmail.com")
+            print(f"Subject: {subject}")
+            print(body)
+            print("--------------------------")
+            return jsonify({'status': 'mock_sent', 'message': 'Request logged (SMTP not configured)'})
+            
+        msg = MIMEMultipart()
+        msg['From'] = smtp_user
+        msg['To'] = 'mark.vandenbroeck@gmail.com'
+        msg['Subject'] = subject
+        msg.attach(MIMEText(body, 'plain'))
+        
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.send_message(msg)
+        server.quit()
+        
+        return jsonify({'status': 'sent'})
+        
+    except Exception as e:
+        print(f"Email error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Start background sync thread can be uncommented if needed, sticking to original pattern
